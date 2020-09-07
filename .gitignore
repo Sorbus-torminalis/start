@@ -43,3 +43,9 @@ vignettes/*.pdf
 
 # output
 *.html
+*.md
+*.png
+
+#data
+data/
+

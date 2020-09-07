@@ -1,0 +1,296 @@
+---
+title: "Post-publication review of 'Animal behaviour and algal camouflage jointly structure predation and selection'"
+author: "Sorbus torminalis"
+date: "9/5/2020"
+output:
+  html_document:
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(here)
+library(tidyverse)
+library(broom)
+```
+
+```{r download}
+if(!fs::file_exists(here("data", "jeb13261-sup-0003-SupInfo.xlsx"))){
+  print("Downloading file")
+  download.file("https://onlinelibrary.wiley.com/action/downloadSupplement?doi=10.1111%2Fjeb.13261&file=jeb13261-sup-0003-SupInfo.xlsx", destfile = here("data", "jeb13261-sup-0003-SupInfo.xlsx")) 
+}
+```
+
+```{r import}
+algae_survival <- readxl::read_xlsx(here("data", "jeb13261-sup-0003-SupInfo.xlsx"), sheet = "Sheet1") %>% 
+  mutate(across(-activity, as.factor))
+
+```
+
+I have number of queries about this paper.
+
+## Algal biomass
+
+The amount of algae removed from the _Epitheca_ larvae is reported to be 
+
+> 6.2 ± 8.7 mg 1 SD
+
+The raw data are not reported but can be reconstructed with rSPRITE ([Heathers et al 2018](https://peerj.com/preprints/26968v1/)).
+The results of rSPRITE suggest this mean and standard deviation can only be achieved if 30-40% of larvae have near-zero algal mass and a few larvae have a large amount (perhaps 50 mg or more).
+Given that many of the larvae appear to have little or no algal coverage, as might be expected some if of the larvae have recently moulted, it is perhaps surprising that the effect of algal removal on survival is so large.
+
+Please can the authors comment on this; archive the raw algal biomass measurements; and indicate the approximate algal biomass on the larvae in figure S2.
+
+## Camouflage experiment
+
+Unfortunately neither the code nor raw data for this experiment seem to have been archived making it difficult to reproduce the results. The model used is described as
+
+> generalized linear model (GLM) with a Poisson error distribution to predict time until attack, using the presence/absence of algal build‐up and background type as predictor variables. 
+
+With results
+
+> When Epitheca were in colour‐matched backgrounds (green‐brown), Anax took longer to attack (Fig. 1; background effect: F1,17 = 3.156, P = 0.001), and this effect was compounded when individuals had algal camouflage (Fig. 1; algae*background interaction: F1,16 = 2.619, P = 0.009). 
+
+It is unclear why F-statistics are used to report the results of a Poisson GLM.
+R will warn: "using F test with a 'poisson' family is inappropriate".
+It is also unclear why, given there are four treatments with ten replicates, why there are only ~17 degrees of freedom. 
+`statcheck` reports that the p-values in this paragraph are incorrect.
+
+```{r statcheck}
+#edited to have brackets around df
+statcheck::statcheck("> When Epitheca were in colour‐matched backgrounds (green‐brown), Anax took longer to attack (Fig. 1; background effect: F(1,17) = 3.156, P = 0.001), and this effect was compounded when individuals had algal camouflage (Fig. 1; algae*background interaction: F(1,16) = 2.619, P = 0.009). 
+")
+```
+
+Please can the author explain how the statistics were performed and check they are correct.
+
+## Selection experiment
+
+As _Bombus Apollineus_ shows in #1, there is a distinct pattern in activity when plotted against tank. 
+I think this can be partially explained by this sentence from the methods:
+
+>After establishing these aquatic communities, I introduced 10 Epitheca to each of 10 tanks, with each tank receiving an equal number of algae‐removed and control individuals **spanning a range of activity rates**.
+
+The easiest way to do this would be to put the least active animal in tank 1, the second least active animal in tank 2 and so on, looping back to tank 1 for the eleventh animal. 
+
+```{r tank-activity-plot, message = FALSE}
+ggplot(algae_survival, aes(x = tank, y = activity, colour = algae, shape = anax, size = survival)) +
+  geom_point() +
+  scale_colour_manual(values = c("saddlebrown", "green3"))
+
+```
+```{r simulate-tank-activity-plot}
+ggplot(algae_survival, aes(x = activity)) + 
+  geom_histogram()
+set.seed(42)
+new_algae <- tibble(
+  algae = factor(rep(0:1, 50)),
+  activity = rbeta(100, shape1 = .5, shape2 = 1.5) * 100
+) %>% 
+  arrange(activity) %>% 
+  mutate(tank = rep(1:10, 10))
+
+ggplot(new_algae, aes(x = tank, y = activity, colour = algae)) +
+  geom_point() +
+  scale_colour_manual(values = c("saddlebrown", "green3"))
+```
+
+A quick simulation shows it is possible to partially replicate this pattern with this strategy.
+
+While I understand the motivation behind trying to balance the activity rates between tanks, this strategy was probably not a good idea, not least because tanks 9 and 10 which had the no predator treatment had the most active animals. Random (perhaps stratified) allocation would probably have been a more appropriate strategy. 
+
+
+```{r probability-10}
+algal_scrubbed <- tibble(
+  n = c(rep(50:41, 2), rep(40:31, 2), 
+        rep(30:21, 2), rep(20:11, 2), rep(10:1, 2)),
+  d = 100:1
+  ) %>% 
+  mutate(r = n/d) %>% 
+  summarise(p = prod(r) * 2) # *2 as either algal or scrubbed could occupy the first line.
+```
+The second pattern shown in #1 and #2, that all the larvae on each "line" across the plot are from the same treatment is harder to explain if the methods are correctly described.
+The probability of finding this pattern by change is rather low (p = `r signif(algal_scrubbed, 1)`), so the 'chance' explanation can be discarded. 
+One possible explanation is that, contrary to the description in the methods, the activity was measured prior to algae removal. 
+If so, the methodology is incorrectly described and a poor choice.
+
+Please can the author clarify this point.
+
+The paper reports that algal treatment had no significant effect on activity
+
+>any effect of algal removal on activity rate could be detected as a mean difference in activity rate in algae vs. algae‐removed treatments; no such effect was detected in a linear model (LM; P > 0.65). 
+
+Which seems to be at odds with the figures shown in #1 and #2 which clearly show that the least active animals in each tank are all algal level 0 and, conversely, the most active animals are all algal treatment 1.
+
+Running a linear model on activity vs algal treatment in the archived data gives a weakly significant result: I cannot reproduce the reported result.
+
+```{r algal-treatment}
+mod_algae <- lm(activity ~ algae, data = algae_survival)
+summary(mod_algae)
+```
+
+Another detail I don't understand relates to the calculation of activity. Which is described as follows
+
+>  I introduced each Epitheca to a 9‐cm petri dish filled with pond water and then recorded their position every 20 min for 3 h. Activity rate was quantified as the total distance moved between recorded positions.
+
+Assuming that this is a 9-cm diameter Petri dish (not 9-cm radius), the greatest distance that can be travelled between observations is 9 cm.
+With nine observations, this gives a maximum distance travelled of 81 cm (for an animal that is found on opposite sides of the Petri dish at each observation - the maximum realistic values are somethat less), yet the maximum activity is reported as `r max(algae_survival$activity)` (units not specified). One possibility is that activity has been rescaled to 0-100, but as all the analyses and plots in the use activity standardised to zero mean and unit standard deviation, any prior scaling is redundant.
+
+Please can the author clarify if and how the activity data were transformed prior to being archived.
+
+I am also puzzled by the choice of model for analysing the selection data. 
+The paper uses generalised mixed effect models with binomial errors to establish p-values, but a linear mixed effect model to estimate the coefficients.
+This procedure is adopted because "LMs of transformed binary data violate statistical assumptions".
+This is correct, however the violation of the assumptions affects both the p-values and the coefficients the linear model returns.
+
+That the linear model is inappropriate can be observed from the prediction of negative survival beyond a standardised activity of ~ 0.5.
+Also note that had there been more active larvae in the algae-removed treatment group (so more data points at the lower right part of the figure) then the slope of the linear model would be less steep. A binomial model would be unchanged by the addition of these points.
+
+
+
+
+
+```{r model}
+algae_survival2 <- algae_survival %>%
+  filter(anax == 1) %>% 
+  mutate(
+    survival = as.numeric(as.character(survival)),
+    survival2 = survival/mean(survival),
+    scaled_activity = scale(activity), 
+         scaled_activity = as.vector(scaled_activity))
+
+
+newdata <- crossing(
+  algae = factor(0:1), 
+  scaled_activity = seq(
+    min(algae_survival2$scaled_activity),
+    max(algae_survival2$scaled_activity),
+    length = 100), 
+  tank = NA
+  )
+
+```
+```{r mixed-model}
+library(lme4)
+library(broom.mixed)
+
+mod_lmer <- lmer(survival2 ~ algae * scaled_activity + (1|tank), algae_survival2)
+
+
+tidy(mod_lmer)
+pred.lmer <- newdata %>% 
+  mutate(pred = predict(mod_lmer, newdata = newdata, re.form = NA)) %>% 
+  filter(pred > -0.1)
+
+p_lmer1 <- ggplot(algae_survival2, aes(x = scaled_activity, y = survival2, colour = algae)) +
+  geom_jitter(height = 0.1, width = 0) +
+  geom_line(data = pred.lmer, aes(y = pred)) + 
+  scale_colour_manual(values = c("saddlebrown", "green3"))
+
+p_lmer1
+
+mod_glmer <- glmer(survival ~ algae * scaled_activity + (1|tank), algae_survival2, family = binomial)
+
+summary(mod_glmer)
+
+pred.glmer <- newdata %>% 
+  mutate(
+    fit = predict(mod_glmer, newdata = newdata, re.form = NA, type = "response")
+  )
+
+p_glmer1 <- ggplot(algae_survival2, aes(x = scaled_activity, y = survival, colour = algae)) +
+  geom_jitter(height = 0.1, width = 0) +
+  geom_line(data = pred.glmer, aes(y = fit)) + 
+  scale_fill_manual(values = c("saddlebrown", "green3")) +
+  scale_colour_manual(values = c("saddlebrown", "green3"))
+p_glmer1
+```
+
+
+```{r pseudo-camo-data, eval = FALSE, echo=FALSE }
+camo <- tibble(
+  colour = rep(c("white", "green"), each = 20), 
+  algae = factor(rep(c(0, 1, 0, 1), each = 10)),
+  time = c(sample(1:5, replace = TRUE, size = 20),
+           sample(1:12, replace = TRUE, size = 10),
+           sample(10:35, replace = TRUE, size = 10))
+)
+
+ggplot(camo, aes(x = colour, y = time, colour = algae)) +
+  stat_summary(position = position_dodge(width = 0.1))
+
+camo_glm <- glm(time ~ colour * algae, camo, family = poisson)
+summary(camo_glm)
+anova(camo_glm, test = "F")
+```
+
+
+## effect of change
+
+```{r change-data}
+algae_survival2 <- algae_survival %>%
+  filter(anax == 1) %>% 
+  mutate(
+    survival = as.numeric(as.character(survival)),
+    survival2 = survival/mean(survival),
+    scaled_activity = scale(activity), 
+         scaled_activity = as.vector(scaled_activity))
+
+
+newdata <- crossing(
+  algae = factor(0:1), 
+  scaled_activity = seq(
+    min(algae_survival2$scaled_activity),
+    max(algae_survival2$scaled_activity),
+    length = 100), 
+  tank = NA
+  )
+
+```
+```{r mixed-model}
+library(patchwork)
+
+algae_survival3 <- algae_survival2 %>% 
+  slice(which.max(scaled_activity)) %>%
+  mutate(algae = factor(0)) %>% 
+  bind_rows(algae_survival2)
+
+
+
+mod_lmer3 <- lmer(survival2 ~ algae * scaled_activity + (1|tank), algae_survival3)
+
+pred.lmer3 <- newdata %>% 
+  mutate(pred = predict(mod_lmer3, newdata = newdata, re.form = NA)) %>% 
+  filter(pred > -0.1)
+
+p_lmer3 <- ggplot(algae_survival3, aes(x = scaled_activity, y = survival2, colour = algae)) +
+  geom_jitter(height = 0.1, width = 0) +
+  geom_line(data = pred.lmer3, aes(y = pred)) + 
+  scale_colour_manual(values = c("saddlebrown", "green3"))
+
+
+mod_glmer3 <- glmer(survival ~ algae * scaled_activity + (1|tank), algae_survival3, family = binomial)
+
+pred.glmer3 <- newdata %>% 
+  mutate(
+    fit = predict(mod_glmer3, newdata = newdata, re.form = NA, type = "response")
+  )
+
+p_glmer3 <- ggplot(algae_survival3, aes(x = scaled_activity, y = survival, colour = algae)) +
+  geom_jitter(height = 0.1, width = 0) +
+  geom_line(data = pred.glmer3, aes(y = fit)) + 
+  scale_fill_manual(values = c("saddlebrown", "green3")) +
+  scale_colour_manual(values = c("saddlebrown", "green3"))
+
+(p_lmer1 + p_glmer1) /(p_lmer3 + p_glmer3) + 
+  plot_layout(guides = 'collect')
+
+```
+```{r}
+tidy(mod_lmer)
+tidy(mod_lmer3)
+tidy(mod_glmer)
+tidy(mod_glmer3)
+
+```
+
