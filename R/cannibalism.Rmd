@@ -1,0 +1,73 @@
+---
+title: "Post-publication review of 'Animal behaviour and algal camouflage jointly structure predation and selection'"
+author: "Sorbus torminalis"
+date: "9/5/2020"
+output:
+  html_document:
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(here)
+library(tidyverse)
+library(broom)
+theme_set(theme_bw())
+```
+
+```{r download}
+if(!fs::file_exists(here("data", "cannibalism_damsel_warming_april10_2017.xlsx"))){
+  print("Downloading file")
+  filelocation <- rdryad::dryad_download("10.5061/dryad.7f0c4")
+  fs::file_move(
+    path = filelocation[[1]], 
+    new_path = here("data", "cannibalism_damsel_warming_april10_2017.xlsx")
+  ) 
+}
+```
+
+```{r import}
+cannibals <- readxl::read_xlsx(
+  path = here("data", "cannibalism_damsel_warming_april10_2017.xlsx"), 
+  sheet = "Experiment1-matrix", na = "NA")
+```
+
+
+## Head width measurements
+
+```{r}
+widths <- cannibals %>% 
+  select(matches("^T\\d_Hw_\\d")) %>% 
+  pivot_longer(everything(), names_pattern = "^(T\\d)_Hw_(\\d)$", names_to = c("Time", "Individual")) %>% 
+  filter(!is.na(value))
+
+last_digit <- widths %>% 
+  mutate(
+    value = round(value, 4), #drop any excel weirdness
+    value = floor(value), # drop decimal places from T2
+    last10 = value %% 10,
+    last100 = value %% 100) %>%
+  pivot_longer(starts_with("last"), names_to = "ten_hundred", values_to = "last_digits") %>% 
+  group_by(Time, Individual, ten_hundred) %>%  
+  count(last_digits)
+
+last_digit_plot <- last_digit %>%
+  filter(ten_hundred == "last10") %>% 
+  ggplot(aes(x = last_digits, y = n, fill = Individual)) +
+  geom_col() +
+  scale_x_continuous(breaks = 0:9) +
+  labs(x = "Last digit") +
+  facet_wrap(~Time)
+
+last2_digit_plot <- last_digit %>%
+  filter(ten_hundred == "last100") %>% 
+  ggplot(aes(x = last_digits, y = n, fill = Individual)) +
+  geom_col() +
+  scale_x_continuous(breaks = seq(0, 100, 10)) +
+  labs(x = "Last two digits") +
+  facet_wrap(~Time)
+
+
+last_digit_plot / last2_digit_plot + plot_layout(guides = "collect", )
+```
+
