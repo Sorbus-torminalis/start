@@ -8,10 +8,11 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE)
 library(here)
 library(tidyverse)
 library(broom)
+library(patchwork)
 theme_set(theme_bw())
 ```
 
@@ -35,6 +36,12 @@ cannibals <- readxl::read_xlsx(
 
 ## Head width measurements
 
+There are two sets of head width measurements on the pairs of damselfly larvae: the first taken at day 0, the second at day 44. 
+ImageJ is used to measure the widths.
+_Bombus Apollineus_ noted in #1 that only for the second pair of measurement can the size difference between the two larvae be readily recalculated from the archived data.
+That is not the only difference between the two sets of measurements.
+
+The first set of measurements is reported as integer values whereas the second is reported to two decimal places. 
 ```{r}
 widths <- cannibals %>% 
   select(matches("^T\\d_Hw_\\d")) %>% 
@@ -51,13 +58,22 @@ last_digit <- widths %>%
   group_by(Time, Individual, ten_hundred) %>%  
   count(last_digits)
 
+```
+
+A more curious difference is in the frequency of the last one and two digits in the integer part of the data. 
+The second measurements (T2; n = `r sum(widths$Time == "T2")`) have an approximately uniform distribution of values, as expected from Benford's law on last digits.
+The first measurements (T1; n = `r sum(widths$Time == "T1")`; n is larger as there was no mortality at this stage) have an uneven distribution.
+While many of the values end in two, none end in three, and few end in six or seven.
+Several of the most prominent spikes in the distribution of the last two digits are where both digits are the same. For example, 22 occurs `r sum(widths$Time == "T1" & widths$value %% 100 == 22)` times, and 99 occurs `r sum(widths$Time == "T1" & widths$value %% 100 == 99)` times.
+
+```{r}
 last_digit_plot <- last_digit %>%
   filter(ten_hundred == "last10") %>% 
   ggplot(aes(x = last_digits, y = n, fill = Individual)) +
   geom_col() +
   scale_x_continuous(breaks = 0:9) +
   labs(x = "Last digit") +
-  facet_wrap(~Time)
+  facet_wrap(~ Time, scales = "free")
 
 last2_digit_plot <- last_digit %>%
   filter(ten_hundred == "last100") %>% 
@@ -65,9 +81,19 @@ last2_digit_plot <- last_digit %>%
   geom_col() +
   scale_x_continuous(breaks = seq(0, 100, 10)) +
   labs(x = "Last two digits") +
-  facet_wrap(~Time)
+  facet_wrap(~ Time, scales = "free")
 
 
 last_digit_plot / last2_digit_plot + plot_layout(guides = "collect", )
 ```
 
+It is not clear how this pattern in the first measurements could be generated as insufficient details are given in the methods (camera, resolution, etc). 
+
+If the image resolution is low, there might be some issues with aliasing. 
+For example, if the resolution is 2 $\mu m$ per pixel, then only widths that are multiples of 2 $\mu m$ are possible. 
+However, this only applies if the larvae are perfectly orientated as measurements made diagonally could still give odd values.
+Moreover, it is difficult to see how this could affect only one of the sets of measurements that were presumably collected with similar methods.
+
+An independent dataset of damselfly head width measurements (https://doi.org/10.5061/dryad.7d85g7b), also measured with imageJ, showed a near uniform (after converting to $\mu m$) distribution of last digits.
+
+Do the authors have any explanation for this pattern in the first set of width measurements?
