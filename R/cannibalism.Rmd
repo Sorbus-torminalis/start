@@ -97,3 +97,5 @@ Moreover, it is difficult to see how this could affect only one of the sets of m
 An independent dataset of damselfly head width measurements (https://doi.org/10.5061/dryad.7d85g7b), also measured with imageJ, showed a near uniform (after converting to $\mu m$) distribution of last digits.
 
 Do the authors have any explanation for this pattern in the first set of width measurements?
+
+Code to reproduce these analyses can be found at [https://github.com/Sorbus-torminalis/start/blob/main/R/cannibalism.Rmd](https://github.com/Sorbus-torminalis/start/blob/main/R/cannibalism.Rmd)
