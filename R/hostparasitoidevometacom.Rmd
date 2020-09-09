@@ -13,7 +13,6 @@ library(here)
 library(tidyverse)
 library(broom)
 library(patchwork)
-library(magrittr)
 theme_set(theme_bw())
 ```
 
@@ -38,11 +37,12 @@ dispersal <- readxl::read_xlsx(
   sheet = "Sheet2")
 ```
 
+There are some unexpected patterns in both the dispersal data and gall diameter data archived for this paper.
 
 ## Dispersal distances
 
 _Bombus Apollineus_ noted in #1 that some of the dispersal distances (measured in metres) are reported to two decimal places while others are reported to 16 decimal places. 
-In this part of my comment, I want explore some further curious patterns in the dispersal data and how they interact with the reported precision.
+I want explore some other patterns in the dispersal data and how they interact with the reported precision.
 
 The usage notes at https://datadryad.org/stash/dataset/doi:10.5061/dryad.vr588 state
 
@@ -92,7 +92,7 @@ monotonic %>%
 Not all the flies were located four times.
 This does not surprise me. 
 It cannot be easy to relocate a small fly in vegetation.
-All the flies that are missing from one observation have monotonic distances.
+All the flies that are missing an observation have monotonic distances.
 
 ```{r}
 monotonic %>% 
@@ -114,98 +114,60 @@ monotonic %>%
 
 The reversals in the distance travelled suggest that either the data have not been described correctly, and they are actually distances from the release point, or that there has been an error in the calculation.
 
-Please can the authors check their calculations and see if any error affects the remainder of the results.
+Please can the authors check their calculations and whether any error affects the remainder of the results.
 
 ## Galls
 
->Fly is binary where 0 represents Eurosta having died for any reason whereas 1 represents Eurosta which survived. Larvae is the same as fly but replaces zeros with NAs when there is no gall present in the line. Bird is binary where 0=no and 1=yes bird attack. Mordellistena, eury.obs, and eury.gig represent attack by different parasitoid species and are coded identically to bird attack
+The paper also reports gall diameters. 
+As #3 notes, these also have some diameters reported to 2 decimal places and some to 16. 
+The values reported to 2 decimal places are not randomly arranged. 
 
-```{r}
-galls %>% 
-  distinct(patch, stems) #sorted by n stems
+These plots show the gall diameters plotted against row number, faceted by patch number and outcome (larvae or cause of death).
+Patches are arranged by the number of galls.
+Values reported to two decimal places are shown in blue.
 
-
-
-#patch distance - n_stems correlation 
-galls %>% distinct(patch, .keep_all = TRUE) %$% 
-  cor.test(distance, stems) 
-
-galls %>% distinct(patch, .keep_all = TRUE) %>% 
-  ggplot(aes(distance, stems, colour = gall == 0)) +
-  geom_point()
-
-galls %>% distinct(patch, .keep_all = TRUE) %>% 
-  filter(distance <= 75 | stems > 50) %$%
-  cor.test(distance, stems)
-
-
-```
 ```{r}
 galls_2dp <- galls %>% 
   filter(!is.na(diameter)) %>% 
   rowwise() %>% 
-  mutate(two_dp = isTRUE(all.equal(diameter, round(diameter, 2))))
-
-galls_2dp %>% 
-  ggplot(aes(x = 1:nrow(.), y = diameter, colour = two_dp)) +
-  geom_point() +
-  facet_wrap(~ patch, scales = "free_x")
+  mutate(
+    two_dp = isTRUE(all.equal(diameter, round(diameter, 2))), 
+    larvae = if_else(!is.na(larvae) & larvae == 1 , "larvae", ""),
+    bird = if_else(bird == 1, "Bird", ""), 
+    mordellistena = if_else(mordellistena == 1, "Mordell.", ""), 
+    eury.obs = if_else(eury.obs == 1, "e.obs", ""),
+    eury.gig = if_else(eury.gig == 1, "e.gig", ""),
   
-galls_2dp %>% 
-  group_by(patch) %>% 
-  count() %>% 
-  arrange(desc(n))
-
-galls_2dp %>% count(fly) 
+    outcome = paste(larvae, bird, mordellistena, eury.obs, eury.gig),
+    outcome = str_trim(outcome, side = "both")
+  )
 
 plot_diameter_by_rownumber <- function(patches){
   galls_2dp %>% 
     filter(patch %in% patches) %>%
-    select(-distance, -stems, -gall) %>% 
-    mutate(
-      fly = if_else(fly == 1, "Fly", ""),
-      larvae = if_else(larvae == 1, "larvae", ""),
-      bird = if_else(bird == 1, "Bird", ""), 
-      mordellistena = if_else(mordellistena == 1, "Mordell.", ""), 
-      eury.obs = if_else(eury.obs == 1, "e.obs", ""),
-      eury.gig = if_else(eury.gig == 1, "e.gig", ""),
-    
-      outcome = paste(fly, larvae, bird, mordellistena, eury.obs, eury.gig),
-      outcome = str_trim(outcome),
-      outcome = str_replace(outcome, "\\s*", " ")
-    ) %>% 
     ggplot(aes(x = 1:nrow(.), y = diameter, colour = two_dp)) +
     geom_point() +
     facet_grid(outcome ~ patch, scales = "free_x") +
-    theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.x = element_blank(), legend.position = "none")
+    theme(axis.text.x = element_blank(), 
+          axis.ticks.x = element_blank(), 
+          axis.title.x = element_blank(),
+          legend.position = "none")
 }
 
 plot_diameter_by_rownumber(patches = c(4, 9, 18, 15, 6, 8, 10, 20)) 
 plot_diameter_by_rownumber(patches = c(13, 17,  5, 11, 16,  2, 12, 19))
 plot_diameter_by_rownumber(patches = c(21, 14,  3, 7, 24, 23, 1, 22))
-
-galls_2dp %>% 
-    select(-distance, -stems, -gall) %>% 
-    mutate(
-      fly = if_else(fly == 1, "Fly", ""),
-      larvae = if_else(larvae == 1, "larvae", ""),
-      bird = if_else(bird == 1, "Bird", ""), 
-      mordellistena = if_else(mordellistena == 1, "Mordell.", ""), 
-      eury.obs = if_else(eury.obs == 1, "e.obs", ""),
-      eury.gig = if_else(eury.gig == 1, "e.gig", ""),
-    
-      outcome = paste(fly, larvae, bird, mordellistena, eury.obs, eury.gig),
-      outcome = str_trim(outcome),
-      outcome = str_replace(outcome, "\\s*", " ")
-    ) %>% 
-    ggplot(aes(x = diameter, fill = outcome)) +
-    geom_histogram(bins = 19) 
-
 ```
 
-```{r models, eval = FALSE}
-mod1 <- lmer(diameter ~ distance + stems + (1|patch), data = galls)
-summary(mod1)
-```
+Most of the values reported to two decimal places are for galls parasitised by _Eurytoma gigantea_, except for the three patches with fewest galls, where the galls with larvae are reported to two decimal places.
 
-Code to reproduce these analyses can be found at [https://github.com/Sorbus-torminalis/start/blob/main/R/cannibalism.Rmd](https://github.com/Sorbus-torminalis/start/blob/main/R/hostparasitoidevometacom.Rmd)
+I am uncertain what to infer about the relationship between row number and diameter in each patch which for most outcomes is monotonic.
+The data have clearly been sorted: the patches are arranged by the number of stems; and within each patch, galls are arranged by outcome.
+It is possible that the data were further sorted by gall diameter, but the sort order is not perfect, most notably for the bird predated galls in patches 4, 8, 15, and 18, where there appear to be two runs of data, but also for some of the other outcomes.
+
+Please can the authors check that any processing of the excel file has not accidentally disrupted the data, and explain the excess precision.
+
+Data on the common garden experiment does not seem to have been archived. 
+Please can the authors archive them.
+
+Code to reproduce these analyses can be found at [https://github.com/Sorbus-torminalis/start/blob/main/R/hostparasitoidevometacom.Rmd.Rmd](https://github.com/Sorbus-torminalis/start/blob/main/R/hostparasitoidevometacom.Rmd)
