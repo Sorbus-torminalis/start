@@ -1,0 +1,211 @@
+---
+title: "Post-publication review of 'Host–parasitoid evolution in a metacommunity'"
+author: "Sorbus torminalis"
+date: "9/5/2020"
+output:
+  html_document:
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(here)
+library(tidyverse)
+library(broom)
+library(patchwork)
+library(magrittr)
+theme_set(theme_bw())
+```
+
+```{r download}
+if(!fs::file_exists(here("data", "gall.attack.data.Start&Gilbert2016.xlsx"))){
+  print("Downloading file")
+  filelocation <- rdryad::dryad_download("10.5061/dryad.vr588")
+  fs::file_move(
+    path = filelocation[[1]], 
+    new_path = here("data", "gall.attack.data.Start&Gilbert2016.xlsx")
+  ) 
+}
+```
+
+```{r import}
+galls <- readxl::read_xlsx(
+  path = here("data", "gall.attack.data.Start&Gilbert2016.xlsx"), 
+  sheet = "Sheet1", na = "NA")
+
+dispersal <- readxl::read_xlsx(
+  path = here("data", "gall.attack.data.Start&Gilbert2016.xlsx"), 
+  sheet = "Sheet2")
+```
+
+
+## Dispersal distances
+
+_Bombus Apollineus_ noted in #1 that some of the dispersal distances (measured in metres) are reported to two decimal places while others are reported to 16 decimal places. 
+In this part of my comment, I want explore some further curious patterns in the dispersal data and how they interact with the reported precision.
+
+The usage notes at https://datadryad.org/stash/dataset/doi:10.5061/dryad.vr588 state
+
+> Dispersal is the cumulative distance moved by that fly in meters.
+
+As such, one should expect the distances to monotonically increase over the four measurements. 
+However, several of the flies exhibit reversals in the cumulative distance moved.
+This plot shows distance moved over time by each fly. 
+Trajectories shown in red are non-monotonic.
+
+```{r dispersal}
+monotonic <- dispersal %>% 
+  rowwise() %>% 
+  mutate(two_dp = isTRUE(all.equal(dispersal, round(dispersal, 2)))) %>% 
+  group_by(individual) %>% 
+  mutate(
+    delta = dispersal - lag(dispersal, default = 0),
+    monotonic = all(delta >= 0), 
+    n_obs = n()
+    )  
+
+monotonic %>% 
+  ggplot(aes(x = time, y = dispersal, group = individual, colour = monotonic, shape = two_dp)) +
+  geom_point() + 
+  geom_line() +
+  scale_shape_manual(values = c(3, 16)) +
+  facet_wrap(~ individual) +
+#  facet_wrap(~ (individual - 1) %/% 4) +
+  theme(strip.text = element_blank(), 
+        panel.spacing = unit(0.2, units = "mm"))
+  
+```
+
+The largest reversal is `r min(monotonic$delta)` m.
+
+
+Flies with monotonic distances are more likely to have the distances reported to two decimal places than flies with reversals.
+
+```{r}
+monotonic %>% 
+  ungroup() %>% 
+  count(monotonic, two_dp) %>% 
+  pivot_wider(names_from = "two_dp", values_from = "n", values_fill = 0, names_prefix = "2 DP = ") %>% 
+  knitr::kable()
+```
+
+Not all the flies were located four times.
+This does not surprise me. 
+It cannot be easy to relocate a small fly in vegetation.
+All the flies that are missing from one observation have monotonic distances.
+
+```{r}
+monotonic %>% 
+  distinct(individual, .keep_all = TRUE) %>% 
+  ungroup() %>% 
+  count(monotonic, n_obs) %>% 
+  pivot_wider(names_from = "n_obs", values_from = "n", values_fill = 0, names_prefix = "N = ") %>% 
+  knitr::kable()
+
+```
+
+```{r, eval = FALSE}
+monotonic %>% 
+  filter(time == 4) %>% 
+  ggplot(aes(x = n_obs, y = dispersal, group = n_obs)) +
+  geom_boxplot()
+
+```
+
+The reversals in the distance travelled suggest that either the data have not been described correctly, and they are actually distances from the release point, or that there has been an error in the calculation.
+
+Please can the authors check their calculations and see if any error affects the remainder of the results.
+
+## Galls
+
+>Fly is binary where 0 represents Eurosta having died for any reason whereas 1 represents Eurosta which survived. Larvae is the same as fly but replaces zeros with NAs when there is no gall present in the line. Bird is binary where 0=no and 1=yes bird attack. Mordellistena, eury.obs, and eury.gig represent attack by different parasitoid species and are coded identically to bird attack
+
+```{r}
+galls %>% 
+  distinct(patch, stems) #sorted by n stems
+
+
+
+#patch distance - n_stems correlation 
+galls %>% distinct(patch, .keep_all = TRUE) %$% 
+  cor.test(distance, stems) 
+
+galls %>% distinct(patch, .keep_all = TRUE) %>% 
+  ggplot(aes(distance, stems, colour = gall == 0)) +
+  geom_point()
+
+galls %>% distinct(patch, .keep_all = TRUE) %>% 
+  filter(distance <= 75 | stems > 50) %$%
+  cor.test(distance, stems)
+
+
+```
+```{r}
+galls_2dp <- galls %>% 
+  filter(!is.na(diameter)) %>% 
+  rowwise() %>% 
+  mutate(two_dp = isTRUE(all.equal(diameter, round(diameter, 2))))
+
+galls_2dp %>% 
+  ggplot(aes(x = 1:nrow(.), y = diameter, colour = two_dp)) +
+  geom_point() +
+  facet_wrap(~ patch, scales = "free_x")
+  
+galls_2dp %>% 
+  group_by(patch) %>% 
+  count() %>% 
+  arrange(desc(n))
+
+galls_2dp %>% count(fly) 
+
+plot_diameter_by_rownumber <- function(patches){
+  galls_2dp %>% 
+    filter(patch %in% patches) %>%
+    select(-distance, -stems, -gall) %>% 
+    mutate(
+      fly = if_else(fly == 1, "Fly", ""),
+      larvae = if_else(larvae == 1, "larvae", ""),
+      bird = if_else(bird == 1, "Bird", ""), 
+      mordellistena = if_else(mordellistena == 1, "Mordell.", ""), 
+      eury.obs = if_else(eury.obs == 1, "e.obs", ""),
+      eury.gig = if_else(eury.gig == 1, "e.gig", ""),
+    
+      outcome = paste(fly, larvae, bird, mordellistena, eury.obs, eury.gig),
+      outcome = str_trim(outcome),
+      outcome = str_replace(outcome, "\\s*", " ")
+    ) %>% 
+    ggplot(aes(x = 1:nrow(.), y = diameter, colour = two_dp)) +
+    geom_point() +
+    facet_grid(outcome ~ patch, scales = "free_x") +
+    theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.x = element_blank(), legend.position = "none")
+}
+
+plot_diameter_by_rownumber(patches = c(4, 9, 18, 15, 6, 8, 10, 20)) 
+plot_diameter_by_rownumber(patches = c(13, 17,  5, 11, 16,  2, 12, 19))
+plot_diameter_by_rownumber(patches = c(21, 14,  3, 7, 24, 23, 1, 22))
+
+galls_2dp %>% 
+    select(-distance, -stems, -gall) %>% 
+    mutate(
+      fly = if_else(fly == 1, "Fly", ""),
+      larvae = if_else(larvae == 1, "larvae", ""),
+      bird = if_else(bird == 1, "Bird", ""), 
+      mordellistena = if_else(mordellistena == 1, "Mordell.", ""), 
+      eury.obs = if_else(eury.obs == 1, "e.obs", ""),
+      eury.gig = if_else(eury.gig == 1, "e.gig", ""),
+    
+      outcome = paste(fly, larvae, bird, mordellistena, eury.obs, eury.gig),
+      outcome = str_trim(outcome),
+      outcome = str_replace(outcome, "\\s*", " ")
+    ) %>% 
+    ggplot(aes(x = diameter, fill = outcome)) +
+    geom_histogram(bins = 19) 
+
+```
+
+```{r models, eval = FALSE}
+mod1 <- lmer(diameter ~ distance + stems + (1|patch), data = galls)
+summary(mod1)
+```
+
+Code to reproduce these analyses can be found at [https://github.com/Sorbus-torminalis/start/blob/main/R/cannibalism.Rmd](https://github.com/Sorbus-torminalis/start/blob/main/R/hostparasitoidevometacom.Rmd)
