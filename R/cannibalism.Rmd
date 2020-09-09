@@ -1,5 +1,5 @@
 ---
-title: "Post-publication review of 'Animal behaviour and algal camouflage jointly structure predation and selection'"
+title: "Post-publication review of 'Cannibalism by damselflies increases with rising temperature'"
 author: "Sorbus torminalis"
 date: "9/5/2020"
 output:
