@@ -138,3 +138,4 @@ replicate(100000, {
 #unlikely to match target mean and variance
 ```
 
+Code to reproduce these analyses can be found at https://github.com/Sorbus-torminalis/start/blob/main/R/individual_pop.Rmd
