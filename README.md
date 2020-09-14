@@ -4,7 +4,6 @@ Install [PubPeer browser extension](https://pubpeer.com/static/extensions) to se
 
 ## List of papers
 
-	AU	YR	TI				data	Dryad	Other
 -	Zukowski, N; Kirk, D; Wadhawan, K; Shea, D; Start, D; Krkosek, M		Predators can influence the host-parasite dynamics of their prey via nonconsumptive effects	ECOLOGY AND EVOLUTION		 https://doi.org/10.1002/ece3.6401	data:	https://datadryad.org/stash/dataset/doi:10.6078/D1597K	
 -	Start, D	2020	Ecological rigidity and the hardness of selection in the wild	EVOLUTION	74: 859--870	 https://doi.org/10.1111/evo.13950	data:	https://datadryad.org/stash/dataset/doi:10.5061/dryad.vmcvdncpw	
 -	Start, D	2020	Phenotypic plasticity and community composition interactively shape trophic interactions	OIKOS	129: 1163--1173	 https://doi.org/10.1111/oik.07194	data:	https://datadryad.org/stash/dataset/doi:10.5061/dryad.4tmpg4f6f	
