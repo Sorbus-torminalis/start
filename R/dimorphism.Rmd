@@ -1,0 +1,147 @@
+---
+title: "Post-publication review of 'Sexual dimorphism in a top predator (Notophthalmus viridescens) drives aquatic prey community assembly'"
+author: "Sorbus torminalis"
+date: "9/12/2020"
+output:
+  html_document:
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(here)
+library(tidyverse)
+library(broom)
+library(patchwork)
+theme_set(theme_bw())
+```
+
+This paper reports the effect of the sex ratio of newts (either 9M : 16F or vice versa) on the composition of aquatic prey communities.
+
+I have no comments to make about the data, but I do have concerns about some of the statistical analyses. 
+
+# Over dispersion
+
+The paper fits GLMs to the abundance of each taxon with a Poisson error distribution. 
+The results of this analysis, shown in table S1, can be replicated almost perfectly.
+
+```{r download}
+if(!fs::file_exists(here("data", "rspb20181717supp2.xlsx"))){
+  print("Downloading file")
+download.file(
+  url = "https://royalsocietypublishing.org/action/downloadSupplement?doi=10.1098%2Frspb.2018.1717&file=rspb20181717supp2.xlsx", 
+  destfile = here("data", "rspb20181717supp2.xlsx")
+  ) 
+}
+```
+
+```{r import}
+dimorph <- readxl::read_xlsx(
+  path = here("data", "rspb20181717supp2.xlsx"), 
+  sheet = "Sheet1", na = "NA") %>% 
+  mutate(treatment = factor(treatment, levels = c("MB", "FB")))
+```
+
+```{r reproduce-tableS1, results = "asis"}
+dimorph_long <- dimorph %>% 
+  select(
+    tank, treatment, chironomid, notonectidae, coleoptera_adult, coleoptera_larvae,   
+    odonata, ephemeroptera, megaloptera, cyclopoid_copepod, calanoid_copepod,
+    harpacticoid_copepod, ostracod, other_cladocera, chdorinid_cladocera, 
+    rotifer, corixid) %>% 
+  pivot_longer(-c(tank, treatment), names_to = "taxa", values_to = "count") %>% 
+  # #merge cladocera
+  # mutate(taxa = recode(taxa, "chdorinid_cladocera" = "other_cladocera")) %>%  
+  # group_by(tank, treatment, taxa) %>% 
+  # summarise(count = sum(count)) %>% 
+  mutate(habitat = case_when(
+    taxa %in% c("chironomid", "coleoptera_larvae", "odonata", "ephemeroptera", "megaloptera", "harpacticoid_copepod", "ostracod") ~ "Benthic",
+    taxa %in% c("notonectidae", "cyclopoid_copepod", "calanoid_copepod", "rotifer",  "other_cladocera") ~ "Pelagic", 
+    taxa %in% c("coleoptera_adult", "corixid") ~ "Both", 
+    TRUE ~ "not in table")) %>% #chdorinid_cladocera
+  group_by(habitat, taxa) %>% 
+  nest() %>% 
+  arrange(habitat, taxa)
+
+tableS1 <- dimorph_long %>% 
+  mutate(
+    mod = map(data, ~glm(count ~ treatment, data = .x, family = poisson)),
+    coef = map(mod, tidy),
+    mod_q = map(data, ~glm(count ~ treatment, data = .x, family = quasipoisson)),
+    coef_q = map(mod_q, tidy),
+    pval_q = map_dbl(coef_q, ~pull(filter(.x, term == "treatmentFB"), p.value)),
+    dispersion = map_dbl(mod_q, ~summary(.x)$dispersion)
+    ) %>% 
+  unnest(coef) %>% 
+  filter(term == "treatmentFB") %>% 
+  select(-mod, -mod_q, -coef_q, -term, -data, -std.error, -statistic) %>% 
+  mutate(across(c(estimate, dispersion), round, digits = 2), 
+         across(c(p.value, pval_q), round, digits = 3)) %>% 
+  rename(p_poisson = p.value, p_quasi = pval_q)
+
+tableS1 %>% 
+  pander::pander(style = "rmarkdown", split.tables = Inf)
+
+```
+
+The coefficient for other_cladocera differs slightly (merging chdorinid_cladocera with other_cladocera does not help), and the signs of the coefficients for Corixid, calanoid_copepod and rotifers are positive in table S1 but negative in the reproduction.
+Otherwise the results are mostly the similar.
+
+The problem with this analysis is that the counts are over-dispersed, as ecological data tend to be, as indicated by the dispersion column.
+One way to account for over-dispersion in count data is to use the quasipoisson error distribution instead of the Poisson.
+If this is done, the evidence for an effect of newt sex ratio on the abundance of taxa is reduced. 
+Four of the seven taxa that apparently had statistically significant relationships at the p = 0.05 level are not statistically significant with the quasipoisson is used.
+
+```{r multiple-testing, results = "hide"}
+tableS1 %>% ungroup() %>% summarise(n = sum(p_poisson < 0.05), nq = sum(p_quasi < 0.05))
+tableS1$p_quasi %>% p.adjust(method = "fdr") %>% min()
+```
+
+
+A second issue is one of multiple testing. 
+If the p-values were adjusted to correct for multiple testing, the apparent strength of the evidence would weaken further.
+
+## Ordinations
+
+Although I have tried several different combinations of species in the NMDS I have been unable to get a configuration close to that published. 
+I can get a configuration where the male and female dominate tanks separate, but this configuration is not robust to the inclusion of motile taxa. 
+If non-default options have been used in the NMDS, that could well explain the  differences between the published figure and what I can reproduce.
+
+Please can the authors archive their code for the ordinations 
+
+```{r, eval = FALSE}
+library(vegan)
+library(ggvegan)
+spp <- dimorph %>% 
+  select(-tank, -treatment, -total_B, -total_P, -prop_B, -unknown) 
+
+spp <- spp %>% 
+  select(-c(corixid, notonectidae, coleoptera_adult, odonata, ephemeroptera, megaloptera)) %>% #motile
+  select(  -harpacticoid_copepod, -`other_benthic_(e.g.,_newt_larvae)`) %>% #rare
+  select(-chdorinid_cladocera) %>% 
+  I()
+
+
+adonis(spp ~ treatment, data = dimorph)
+  
+nmds <- metaMDS(spp)  
+
+stressplot(nmds)
+
+fortify(nmds) %>% 
+  filter(Score == "sites") %>% 
+  mutate(treatment = dimorph$treatment) %>% 
+  ggplot(aes(x = NMDS1, y = NMDS2, label = Label, colour = treatment)) +
+  geom_point() + 
+  ggrepel::geom_text_repel()
+
+fortify(nmds) %>% 
+  filter(Score == "species") %>% 
+  ggplot(aes(x = NMDS1, y = NMDS2, label = Label)) +
+  geom_point() +
+  ggrepel::geom_text_repel()
+```
+
+
+
+Code to reproduce these analyses can be found at https://github.com/Sorbus-torminalis/start/blob/main/R/dimorphism.Rmd
