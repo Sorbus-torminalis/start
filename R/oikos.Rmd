@@ -1,0 +1,121 @@
+---
+title: "Plant sex alters Allee effects in aggregating plant parasites"
+author: "Sorbus torminalis"
+date: "10/12/2020"
+output:
+  html_document:
+    keep_md: true
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(here)
+library(tidyverse)
+library(broom)
+library(patchwork)
+theme_set(theme_bw())
+```
+
+```{r download}
+if(!fs::file_exists(here("data", "dryad files.xlsx"))){
+  print("Downloading file")
+  filelocation <- rdryad::dryad_download("10.5061/dryad.c6f97")
+  fs::file_move(
+    path = filelocation[[1]], 
+    new_path = here("data", "dryad files.xlsx")
+  ) 
+}
+```
+
+
+```{r load-data}
+oikos <- readxl::read_excel(
+  path =  here("data", "dryad files.xlsx"),
+  sheet = "Sheet1"
+)
+```
+
+The paper reports that 
+
+> we collected all sumac aphid galls, a plant parasite, from 56 leaves (173 galls) on ﬁfteen male trees and  44 leaves (240 galls) on ﬁfteen female trees
+
+This does not fully agree with the limited (see #2) archived data. 
+Only 14 female trees are in the archived data with 43 leaves (labelled as branches in the archive). 
+Conversely, all 15 male trees are in the archive data, but only 55 leaves/branches.
+The reported number of galls matches the reported number.
+
+Inspection of the data shows that tree 16 and branches 22 and 100 are missing, as are galls numbered between 80 and 88 inclusive. 
+From the way the data are structured it appears that tree nr 16 was female had a single branch (nr 22) and the nine galls 80-88. 
+Branch 100 was presumably on male tree nr 15 and had an unknown number of galls.
+
+Please can the authors explain why these data have been omitted and report how this omission changed the results.
+
+
+```{r}
+#trees
+oikos %>% 
+  group_by(tree, tree.sex) %>% 
+  select(-gall, -density, -branch) %>% 
+  distinct() %>% 
+  ungroup() %>% 
+  count(tree.sex) %>% 
+  pander::pander(style = "rmarkdown", split.tables = Inf, caption = "Trees")
+
+# leaves/branches
+oikos %>% 
+  group_by(tree, tree.sex, branch, density) %>% 
+  select(-gall) %>% 
+  distinct() %>% 
+  ungroup() %>% 
+  count(tree.sex) %>% 
+    pander::pander(style = "rmarkdown", split.tables = Inf, caption = "Branches/leaves")
+
+#galls
+oikos %>% 
+  count(tree.sex) %>% 
+  pander::pander(style = "rmarkdown", split.tables = Inf, caption = "Galls")
+
+```
+
+```{r}
+setdiff(1:30, oikos$tree)
+setdiff(1:100, oikos$branch)
+setdiff(1:max(oikos$gall), oikos$gall)
+nrow(oikos)
+max(oikos$gall)
+```
+```{r}
+oikos %>% 
+  group_by(tree, branch) %>% 
+  mutate(n = n()) %>% 
+  ungroup() %>% 
+  summarise(agree = mean(n ==density))
+
+oikos %>% group_by(gall) %>% 
+  count() %>% 
+  filter(n > 1)
+```
+
+
+
+```{r}
+oikos %>%  
+ggplot( aes(x = tree, y = branch, colour = factor(tree.sex))) + geom_point() 
+
+oikos %>% 
+ggplot( aes(x = branch, y = gall, colour = factor(tree.sex))) + geom_point() 
+
+oikos %>% 
+ggplot( aes(x = gall, y = density, colour = factor(tree.sex))) + geom_point() 
+
+
+
+
+```
+
+```{r}
+oikos %>% 
+  ggplot(aes(x = density, fill = factor(tree.sex))) +
+  geom_bar(position = position_dodge(preserve = "single"))
+```
+
+
