@@ -47,5 +47,5 @@ vignettes/*.pdf
 *.png
 
 #data
-data/
-
+data/*
+!data/gender_2b_digitised.csv

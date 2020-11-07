@@ -1,0 +1,197 @@
+---
+title: "gender STEM"
+author: "Sorbus torminalis"
+output:
+  html_document:
+    keep_md: true
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(here)
+library(tidyverse)
+theme_set(theme_bw())
+```
+
+
+## Data availability
+
+The paper's data availability statement claims that
+
+> Owing to ethical constraints, we are unable to make available the complete data set, although extensive summary statistics are available in supplementary files.
+
+In fact, the summary statistics in the supplementary material are minimal and difficult to reconcile with the results in the paper.
+
+I wrote to one of the authors to ask for an anonymised subset of the data to reproduce the figures in the paper but received no reply.
+
+_Ecology and Evolution_ has strict rules on data availability, but has an exemption for "sensitive information such as a human subject data". 
+I am not convinced that such easily anonymisable data that are not very sensitive merit this protection. 
+It is worth consulting the APA ethics code (https://www.apa.org/ethics/code, section 8.14), as this refers human subject data that is often far more sensitive that that in this paper.
+
+>(a) After research results are published, psychologists do not withhold the data on which their conclusions are based from other competent professionals who seek to verify the substantive claims through reanalysis and who intend to use such data only for that purpose, provided that the confidentiality of the participants can be protected and unless legal rights concerning proprietary data preclude their release.
+
+## Unlikely patterns in the summary data
+
+```{r summary-stats, include=FALSE}
+
+#from paper
+bio_F_mean = 0.3
+bio_M_mean = 0.6
+bio_combined_mean = 0.43
+n_tot = 463
+total <- 433 # after cleaning
+
+
+#from supplementary
+total_F = 275
+total_M = 175
+#total_F + total_M + 1 #why 18 more than total
+
+
+biology_total = 328
+
+tot_F_mean = 0.4
+tot_M_mean = 0.48
+
+frac_F_pi = 0.6
+
+# are total proportions sensible given proportions in biology
+#assume bio is 60% female as per overall
+#check
+bio_F_mean * frac_F_pi + bio_M_mean * (1 - bio_M_mean) #near bio_combined_mean
+
+#solve for notBio_F_mean
+#(bio_F_mean * frac_F_pi * biology_total + notBio_F_mean * notBioF)/total_F = tot_F_mean
+notBioF <- total_F - biology_total * frac_F_pi
+notBio_F_mean = (tot_F_mean * total_F - bio_F_mean * frac_F_pi * biology_total)/notBioF
+notBio_F_mean
+
+#solve for notBio_M_mean
+#(bio_M_mean * frac_M_pi * biology_total + notBio_M_mean * notBioM)/total_M = tot_M_mean
+notBioM <- total_M - biology_total * (1 - frac_F_pi)
+notBio_M_mean = (tot_M_mean * total_M - bio_M_mean * (1 - frac_F_pi) * biology_total)/notBioM
+notBio_M_mean
+
+
+#all fields
+s3 <- tribble(~field, ~n, 
+             "AS", 1, 
+             "biology", 328, 
+             "geography", 1,
+             "chem", 16, 
+             "CS", 2, 
+             "maths", 30, 
+             "physics",32,
+             "psychology", 27)
+s3 %>% summarise(sum(n))
+#remove rare subjects
+s3 %>% filter(n > 2) %>% summarise(sum(n)) # matches total
+
+```
+
+The text reports that 
+
+>Within biology, an average research group reported having 43% male graduate students. However, male and female PIs reported supervising 60% and 30% male graduate students, respectively
+
+Supplementary table S2 reports that, across all fields, male PIs have 48% male graduate students, whereas female PI have 40%.
+
+The difference in gender balance between the biologists (75 % of the total) and the complete dataset, suggests that the non-biology students have a markedly different gender balance.
+From the available data, it is possible to estimate the proportion of male students for male and female non-biology PI.
+
+There are `r total_F` female PIs (table S2), `r total_M` male PIs (and one non-binary PI), giving a total of `r total_F + total_M + 1 ` PI. 
+Of these, `r biology_total` are biologists.
+
+The paper reports that `r frac_F_pi * 100` % of the PIs are female (this appears to hold for both biologists and non-biologists), so there are about `r round(biology_total * frac_F_pi)` female biologist and `r round(notBioF)` female non-biologists.
+
+From this the proportion of male graduate students for female PI can be estimated as `r notBio_F_mean`.
+For male PI, the proportion is `r notBio_M_mean`.
+
+The apparent differences (even allowing for possible rounding errors) between gender balance for biology and other fields (chemistry, maths, physics, and psychology) is hardly credible, suggesting that there are errors either in the text or the supplementary material.
+Please can the authors check their calculations and archive the anonymised raw data.
+
+## Unexpected patterns in figure 2
+
+Figure 2b should the proportion of male graduate students (presumable from the response to "How many MALE students did your research group accept to graduate school in the last year" and its partner question (table S1)) against the proportion of male applicants. 
+
+There are several unexpected patterns in this figure (and in the related figure 2c).
+
+ - Some PI have no male applicants but over half of the accepted graduate students are male. 
+ This could be a carry-over of applicants from the previous year.
+ - For some PI, 95 % of the accepted students are male, suggesting that 20 were accepted. 
+ This could represent PI with low ability to recruit the students they accept, PI with enormous research groups, or perhaps PI reporting more than just their own students.
+ - Few PI have 1/3, 0.5, or 2/3 male graduate students, but many have multiples of 1/10 (except 5/10).
+ This is unexpected as there are many ways to get 0.5 (1/2, 2/4, 3/6 etc), but few ways to get 0.3 with a plausible number of accepted students.
+ 
+This can be demonstrated with a simulation where the number of accepted male and female students are drawn from a Poisson distribution with different $\lambda$ according to PI gender.
+Values are chosen to resemble the findings of the paper, and assumes the mean number of accepted students is 10 (which may be higher than is reasonable).
+
+```{r simulation, echo = TRUE, warning = FALSE}
+set.seed(314)
+
+simulation <- tibble(
+  n_exp = 10,
+  PI = c(rep("F", round(biology_total * frac_F_pi)), 
+         rep("M", round(biology_total * (1 - frac_F_pi)))), 
+  mean_M = if_else(PI == "M", true = 0.6, false = 0.3) * n_exp, 
+  mean_F = if_else(PI == "F", true = 0.7, false = 0.4) * n_exp,
+  M_accepted = rpois(biology_total, lambda = mean_M),
+  F_accepted = rpois(biology_total, lambda = mean_F),
+  n_accepted = M_accepted + F_accepted,
+  prop_M = M_accepted / n_accepted
+)
+
+# proportion M applicants
+check_PI <- simulation %>% 
+  ggplot(aes(x = PI, y = prop_M)) +
+  geom_boxplot() #strong peak at 0.5
+
+# proportion M applicants
+simulation %>% 
+  count(prop_M) %>% 
+  mutate(labels = if_else(n >=5, round(prop_M, 3), NA_real_)) %>% 
+  ggplot(aes(x = prop_M, y = n, label = labels)) + 
+  geom_col(orientation = "x") +  #strong peak at 0.5
+  geom_text(nudge_y = 0.1, angle = 90, hjust = 0, size = 3) +
+  labs(x = "Simulated proportion male accepted")
+```
+
+This pattern seems robust, but contrasts with the reported proportion of accepted male graduate students digitised with [WebPlotDigitizer](https://apps.automeris.io/wpd/) and cleaned by adjusting to the nearest plausible fraction (using `numbers::ratFarey()` for guidance when necessary).
+Note, over-plotted points cannot be digitised.
+There may be some error in the cleaning, but values 0.02 apart should be possible to distinguish.
+
+```{r digitised, warning = FALSE}
+digitised <- read_delim(here("data", "gender_2b_digitised.csv"), delim = ",") 
+
+digitised %>% 
+  count(cleanY) %>% 
+  mutate(labels = if_else(n >= 2, round(cleanY, 3), NA_real_)) %>% 
+  ggplot(aes(x = cleanY, y = n, label = labels)) + 
+  geom_segment(aes(xend = cleanY, yend = 0)) +
+  geom_text(nudge_y = 0.1, angle = 90, hjust = 0, size = 3) +
+  labs(x = "Digitised proportion male accepted")
+
+
+digitised %>% 
+  count(cleanY) %>% 
+  mutate(labels = if_else(n >= 2, round(cleanY, 3), NA_real_)) %>% 
+  ggplot(aes(x = cleanY, y = n, label = labels)) + 
+  geom_col(orientation = "x", width = 0.004) +
+  geom_text(nudge_y = 0.1, angle = 90, hjust = 0, size = 3) +
+  labs(x = "Digitised proportion male accepted")
+```
+
+
+ 
+Do the authors have any explanation for these patterns.
+Please can the authors archive (or a least share for verification under APA guidelines) the raw anonymised data.
+ 
+
+
+
+
+
+
+
+
+
+
+
