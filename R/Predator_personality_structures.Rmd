@@ -1,0 +1,105 @@
+---
+title: "Untitled"
+author: "Sorbus torminalis"
+date: "11/11/2020"
+output:
+  html_document:
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(here)
+library(tidyverse)
+theme_set(theme_bw())
+```
+
+```{r download}
+if(!fs::file_exists(here("data", "animal_personality_trophic_ecolletts2017.xlsx"))){
+  print("Downloading file")
+  filelocation <- rdryad::dryad_download("10.5061/dryad.r58br")
+  fs::file_move(
+    path = filelocation[[1]], 
+    new_path = here("data", "animal_personality_trophic_ecolletts2017.xlsx")
+  ) 
+}
+```
+
+
+```{r import}
+personality <- readxl::read_excel(
+  path = here("data", "animal_personality_trophic_ecolletts2017.xlsx"), 
+  sheet = "Sheet1", na = "NA")
+
+personality <- personality %>% 
+  mutate(row = 1:n()) %>% 
+  mutate(hidden_treatment = if_else(total.dist.two - total.dist.one > 5, "high2", "similar"),
+         hidden_treatment = factor(hidden_treatment), 
+         hidden_treatment = fct_explicit_na(hidden_treatment, na_level = "-"))
+```
+
+```{r}
+personality %>% group_by(cup) %>% filter(n() > 1)
+
+personality %>% ggplot(aes(x = row, y = cup)) + geom_point()
+
+ggplot(personality, aes(x = total.dist.one,  y = total.dist.two, colour = hidden_treatment)) +
+  geom_point()
+
+ggplot(personality, aes(x = cup,  y = final.plankton, colour = treatment, shape = hidden_treatment)) +
+  geom_point()
+
+ggplot(personality, aes(x = row,  y = final.plankton, colour = treatment, shape = hidden_treatment)) +
+  geom_point()
+
+ggplot(personality, aes(x =total.dist.one,  y = final.plankton, colour = treatment)) +
+  geom_point()
+
+personality %>% filter(hidden_treatment == "high2")
+personality %>% ggplot(aes(x = cup, y = individual.two, colour = hidden_treatment)) + geom_point()
+
+personality %>% 
+  select(final.plankton) %>% 
+ # count(final.plankton) %>% filter(n > 2)
+  ggplot(aes(x = final.plankton)) + geom_bar()
+
+
+personality %>% 
+  ggplot(aes(x = cup, y = final.cop, colour = treatment, shape = hidden_treatment)) + geom_point()
+
+personality %>% 
+  ggplot(aes(x = cup, y = final.algae, colour = treatment)) + geom_point()
+
+personality %>% 
+  ggplot(aes(x = final.algae, fill = treatment)) + geom_bar()
+
+
+
+
+personality %>% 
+  select(starts_with("final")) %>% 
+  pivot_longer(everything()) %>% 
+  mutate(last = value %% 10) %>% 
+  ggplot(aes(x = last)) +
+  geom_bar() +
+  facet_wrap( ~ name, ncol = 1) +
+  scale_x_continuous(breaks = 0:9) +
+  theme_minimal()
+
+library(magrittr)
+personality %>% 
+  transmute(last = final.plankton %% 10) %$% chisq.test(x = last)
+
+
+
+personality %>% 
+  select(starts_with("total.dist.")) %>% 
+  pivot_longer(everything()) %>% 
+  filter(!is.na(value)) %>% 
+  mutate(last = value %% 10) %>% 
+  filter(value > 0) %>% 
+  ggplot(aes(x = last, fill = name)) + geom_bar() +  scale_x_continuous(breaks = 0:9) +
+  theme_minimal()
+
+```
+
