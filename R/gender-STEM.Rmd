@@ -25,7 +25,7 @@ I wrote to one of the authors to ask for an anonymised subset of the data to rep
 
 _Ecology and Evolution_ has strict rules on data availability, but has an exemption for "sensitive information such as a human subject data". 
 I am not convinced that such easily anonymisable data that are not very sensitive merit this protection. 
-It is worth consulting the APA ethics code (https://www.apa.org/ethics/code, section 8.14), as this refers human subject data that is often far more sensitive that that in this paper.
+It is worth consulting the APA ethics code (https://www.apa.org/ethics/code, section 8.14), as psychologists routinely work with refers human subject data that is often far more sensitive than that in this paper.
 
 >(a) After research results are published, psychologists do not withhold the data on which their conclusions are based from other competent professionals who seek to verify the substantive claims through reanalysis and who intend to use such data only for that purpose, provided that the confidentiality of the participants can be protected and unless legal rights concerning proprietary data preclude their release.
 
