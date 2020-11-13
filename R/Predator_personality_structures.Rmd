@@ -14,6 +14,7 @@ library(tidyverse)
 theme_set(theme_bw())
 ```
 
+
 ```{r download}
 if(!fs::file_exists(here("data", "animal_personality_trophic_ecolletts2017.xlsx"))){
   print("Downloading file")
@@ -38,13 +39,36 @@ personality <- personality %>%
          hidden_treatment = fct_explicit_na(hidden_treatment, na_level = "-"))
 ```
 
+# Missing data
+
+Much of the data needed to reproduce the figures in the supplementary material is not archived.
+
+- Head width data (S1)
+- Response to other predators (S2) ?
+- Post-experiment _Epitheca_ activity (S3)
+- Natural densities of _Epitheca_ (S4)
+- Interim counts of zooplankton (S5), copepods (S7), and algae (S10)
+- Timing of cannibalism (S12)
+- Zooplankton susceptibility to predation (Fig 1)
+- Zooplankton impact of algal abundances (Fig 1)
+
+Please can the authors archive these data.
+
+
+
 ```{r}
 personality %>% group_by(cup) %>% filter(n() > 1)
 
 personality %>% ggplot(aes(x = row, y = cup)) + geom_point()
 
+
 ggplot(personality, aes(x = total.dist.one,  y = total.dist.two, colour = hidden_treatment)) +
-  geom_point()
+  geom_abline(colour = "grey45") +
+  geom_point() 
+
+personality %>% filter(total.dist.one >= total.dist.two)
+
+
 
 ggplot(personality, aes(x = cup,  y = final.plankton, colour = treatment, shape = hidden_treatment)) +
   geom_point()
@@ -77,8 +101,10 @@ personality %>%
 
 
 personality %>% 
-  select(starts_with("final")) %>% 
-  pivot_longer(everything()) %>% 
+  select(treatment, starts_with("final")) %>% 
+  pivot_longer(-treatment) %>% 
+  filter(!(treatment == "A" & name %in% c("final.plankton", "final.cop"
+))) %>% #experimentally set to zero
   mutate(last = value %% 10) %>% 
   ggplot(aes(x = last)) +
   geom_bar() +
@@ -91,6 +117,9 @@ personality %>%
   transmute(last = final.plankton %% 10) %$% chisq.test(x = last)
 
 
+personality %>% 
+  ggplot(aes(x = treatment, y = total.dist.one)) + geom_boxplot() # expected if large indic
+
 
 personality %>% 
   select(starts_with("total.dist.")) %>% 
@@ -101,5 +130,59 @@ personality %>%
   ggplot(aes(x = last, fill = name)) + geom_bar() +  scale_x_continuous(breaks = 0:9) +
   theme_minimal()
 
+personality %>% 
+  filter(treatment %in% c("1P", "2P")) %>% 
+  ggplot(aes(x = mean.total.dist, y = prop.cop, colour = hidden_treatment)) + geom_point()
+
+personality %>% filter(hidden_treatment == "similar") %>% 
+  ggplot(aes(x = individual.two, total.dist.two - total.dist.one)) + geom_point()
+
+#fig2
+personality %>% filter(treatment != "A") %>% 
+  ggplot(aes(x = treatment, y = final.plankton)) +
+    geom_violin() +
+  geom_jitter() +
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), colour = "red") 
+personality %>% filter(str_detect(treatment, "P")) %>% 
+  ggplot(aes(x = mean.total.dist, y = final.plankton, colour = treatment)) +
+    geom_point() +
+  geom_smooth(method = "lm") 
+
+#fig3
+
+personality %>% filter(treatment != "A") %>%
+  ggplot(aes(x = treatment, y = prop.cop)) +
+    geom_violin() +
+  geom_jitter() +
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), colour = "red") 
+personality %>% filter(str_detect(treatment, "P")) %>% 
+  ggplot(aes(x = mean.total.dist, y = prop.cop, colour = treatment)) +
+    geom_point() +
+  geom_smooth(method = "lm") 
+
+#fig4
+
+personality %>%
+  ggplot(aes(x = treatment, y = final.algae)) +
+    geom_violin() +
+  geom_jitter() +
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), colour = "red") 
+personality %>% filter(str_detect(treatment, "P")) %>% 
+  ggplot(aes(x = mean.total.dist, y = final.algae, colour = treatment)) +
+    geom_point() +
+  geom_smooth(method = "lm") 
+
+##fig 5
+personality %>% filter(str_detect(treatment, "P")) %>%
+  ggplot(aes(x = prop.cop, y = final.algae, colour = treatment)) + geom_point() +
+   geom_smooth(method = "lm", aes(group = 1)) 
+
+personality %>% filter(str_detect(treatment, "P")) %>%
+  ggplot(aes(x = final.plankton, y = final.algae, colour = treatment)) + geom_point() +
+   geom_smooth(method = "lm", aes(group = 1)) +
+  geom_smooth(method = "glm", aes(group = 1), method.args = list(family = poisson), colour = "red")
+
 ```
+
+
 
