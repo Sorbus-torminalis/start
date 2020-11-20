@@ -1,9 +1,9 @@
 ---
-title: "Untitled"
+title: "Predator personality structures"
 author: "Sorbus torminalis"
 date: "11/11/2020"
 output:
-  html_document:
+  bookdown::html_document2:
     keep_md: true
 ---
 
@@ -11,6 +11,7 @@ output:
 knitr::opts_chunk$set(echo = FALSE)
 library(here)
 library(tidyverse)
+library(broom)
 theme_set(theme_bw())
 ```
 
@@ -33,110 +34,136 @@ personality <- readxl::read_excel(
   sheet = "Sheet1", na = "NA")
 
 personality <- personality %>% 
-  mutate(row = 1:n()) %>% 
-  mutate(hidden_treatment = if_else(total.dist.two - total.dist.one > 5, "high2", "similar"),
-         hidden_treatment = factor(hidden_treatment), 
-         hidden_treatment = fct_explicit_na(hidden_treatment, na_level = "-"))
+  mutate(row = 1:n())
 ```
 
-# Missing data
+<!-- # Missing data -->
 
-Much of the data needed to reproduce the figures in the supplementary material is not archived.
+<!-- While some data are archived for this paper, much is not.  -->
 
-- Head width data (S1)
-- Response to other predators (S2) ?
-- Post-experiment _Epitheca_ activity (S3)
-- Natural densities of _Epitheca_ (S4)
-- Interim counts of zooplankton (S5), copepods (S7), and algae (S10)
-- Timing of cannibalism (S12)
-- Zooplankton susceptibility to predation (Fig 1)
-- Zooplankton impact of algal abundances (Fig 1)
+<!-- I believe the following data sets were collected for and presented in this paper but have not been archived. Brackets show where the data are presented. -->
 
-Please can the authors archive these data.
+<!-- - Head widths (S1) -->
+<!-- - Response to other predators (S2)  -->
+<!-- - Post-experiment _Epitheca_ activity (S3) -->
+<!-- - Natural densities of _Epitheca_ (S4) -->
+<!-- - Initial and interim counts of zooplankton (S5), copepods (S7), and algae (S10) -->
+<!-- - Timing of cannibalism (S12) -->
+<!-- - Zooplankton susceptibility to predation (Fig 1) -->
+<!-- - Zooplankton impact of algal abundances (Fig 1) -->
 
+<!-- Please can the authors archive these data sets. -->
 
+<!-- I also ask that the authors archive their data analysis code so that apparent discrepancies between the methods and the figures noted by #1 can be better understood. -->
+
+## Non-random allocation of larvae
+
+The paper report that 
+
+> we randomly assigned individual predators to replicates of both predator treatments.
+
+As #1 observes, this does not be the case as in treatment 2P the pairs of larvae either have very similar or dissimilar activities.
+Plotting activity against cup number (Fig. \@ref(fig:activity-cup)) makes this pattern clearer. 
+It appears that the pattern observed by #1 is not a hidden treatment but a systematic attempt to cover all parts of the activity space (low-low, low-high, high-high).
+Furthermore, the regular pattern in the allocation to treatment shown by the grey line in (Fig. \@ref(fig:ranked-activity)) suggests that allocation to treatment was not done randomly random but in a systematic fashion by activity.
+
+Please can the authors explain the apparent discrepancy between the description of the methods and the patterns in the data.
 
 ```{r}
-personality %>% group_by(cup) %>% filter(n() > 1)
+# personality %>% 
+#   filter(treatment == "2P") %>% 
+#   ggplot(aes(x = total.dist.one,  y = total.dist.two)) +
+#   geom_abline(colour = "grey45") +
+#   geom_point() 
 
-personality %>% ggplot(aes(x = row, y = cup)) + geom_point()
+# personality %>% 
+#   mutate(cannibalism = factor(cannibalism), 
+#          cannibalism = fct_explicit_na(cannibalism, na_level = "-")) %>% 
+# ggplot(aes(x = row,  y = final.plankton, colour = treatment, shape = cannibalism)) +
+#   geom_point()
+```
 
-
-ggplot(personality, aes(x = total.dist.one,  y = total.dist.two, colour = hidden_treatment)) +
-  geom_abline(colour = "grey45") +
-  geom_point() 
-
-personality %>% filter(total.dist.one >= total.dist.two)
-
-
-
-ggplot(personality, aes(x = cup,  y = final.plankton, colour = treatment, shape = hidden_treatment)) +
-  geom_point()
-
-ggplot(personality, aes(x = row,  y = final.plankton, colour = treatment, shape = hidden_treatment)) +
-  geom_point()
-
-ggplot(personality, aes(x =total.dist.one,  y = final.plankton, colour = treatment)) +
-  geom_point()
-
-personality %>% filter(hidden_treatment == "high2")
-personality %>% ggplot(aes(x = cup, y = individual.two, colour = hidden_treatment)) + geom_point()
+```{r activity-cup, fig.cap = "Activity against cup"}
+personality %>% 
+  select(cup, total.dist.one, total.dist.two, treatment) %>% 
+  pivot_longer(starts_with("total")) %>% 
+  filter(!is.na(value)) %>% 
+  ggplot(aes(x = cup, y = value,  colour = name)) + 
+  geom_point() + 
+  facet_wrap(~ treatment, scales = "free_x")
+ 
+```
+ 
+ 
+```{r ranked-activity, fig.cap="Ranked activity ploted against cup number. Grey lines joins larvae by rank. Colours show when multiple larvae have the same activity."} 
+# personality %>% 
+#   filter(str_detect(treatment, "P")) %>% 
+#   select(cup, treatment, total.dist.one, total.dist.two) %>% 
+#   pivot_longer(starts_with("total")) %>% 
+#   filter(!is.na(value)) %>% 
+#   mutate(rank = rank(value, ties.method = "min")) %>% 
+#   ggplot(aes(x = cup, y = rank, shape = treatment, colour = name)) + 
+#   geom_point() 
 
 personality %>% 
-  select(final.plankton) %>% 
- # count(final.plankton) %>% filter(n > 2)
-  ggplot(aes(x = final.plankton)) + geom_bar()
+  filter(str_detect(treatment, "P")) %>% 
+  select(cup, treatment, total.dist.one, total.dist.two) %>% 
+  pivot_longer(starts_with("total")) %>% 
+  filter(!is.na(value)) %>% 
+  mutate(rank = rank(value, ties.method = "min")) %>% 
+  select(-value) %>% 
+  group_by(rank) %>% 
+  mutate(n = n()) %>% 
+  ungroup() %>% 
+  mutate(n = factor(n)) %>% 
+  arrange(desc(rank)) %>% 
+  ggplot(aes(x = cup, y = rank, colour = n, shape = treatment)) + 
+  geom_point() +
+  geom_path(group = 1, colour = "grey40") 
+```
 
+## Last digits of the response variables
 
-personality %>% 
-  ggplot(aes(x = cup, y = final.cop, colour = treatment, shape = hidden_treatment)) + geom_point()
+The distribution of the digits of the response variables should be approximately uniform, but they are not for final.plankton or final algae (Fig. \@ref(fir:last-digit)).
 
-personality %>% 
-  ggplot(aes(x = cup, y = final.algae, colour = treatment)) + geom_point()
-
-personality %>% 
-  ggplot(aes(x = final.algae, fill = treatment)) + geom_bar()
-
-
-
-
-personality %>% 
+```{r last-digit, fig.cap = "Distribution of the last digit of the response variables."}
+personality_last <- personality %>% 
   select(treatment, starts_with("final")) %>% 
   pivot_longer(-treatment) %>% 
   filter(!(treatment == "A" & name %in% c("final.plankton", "final.cop"
 ))) %>% #experimentally set to zero
   mutate(last = value %% 10) %>% 
-  ggplot(aes(x = last)) +
-  geom_bar() +
+  count(name, last)
+
+ggplot(personality_last, aes(x = last, y = n)) +
+  geom_col(orientation = "x") +
   facet_wrap( ~ name, ncol = 1) +
   scale_x_continuous(breaks = 0:9) +
-  theme_minimal()
+  labs(x = "Last digit", y = "Frequency")
 
-library(magrittr)
-personality %>% 
-  transmute(last = final.plankton %% 10) %$% chisq.test(x = last)
+personality_last %>%
+  group_by(name) %>% 
+  nest() %>% 
+  mutate(chi = map(data, ~chisq.test(.x$n)),
+         chi2 = map(chi, glance)) %>% 
+  select(-data, -chi) %>% 
+  unnest(cols = chi2) %>% 
+  select(name, p.value) %>% 
+  pander::pander(style = "rmarkdown", caption = "Chi square analysis of the last digits")
 
+# personality_last %>% 
+#   pivot_wider(names_from = "name", values_from = "n") %>% 
+#   select(-last) %>% 
+#   cor()
+```
+One possible explanation is that the counts are approximate for the final algae and final plankton, but that the counts are exact for the copepods which have much lower counts.
 
-personality %>% 
-  ggplot(aes(x = treatment, y = total.dist.one)) + geom_boxplot() # expected if large indic
+Curiously, another paper by the same authors also has an uneven distribution of last digits with few threes. 
+https://pubpeer.com/publications/43DF36777257259B8F6FED576F96F3#4
 
+## Replication
 
-personality %>% 
-  select(starts_with("total.dist.")) %>% 
-  pivot_longer(everything()) %>% 
-  filter(!is.na(value)) %>% 
-  mutate(last = value %% 10) %>% 
-  filter(value > 0) %>% 
-  ggplot(aes(x = last, fill = name)) + geom_bar() +  scale_x_continuous(breaks = 0:9) +
-  theme_minimal()
-
-personality %>% 
-  filter(treatment %in% c("1P", "2P")) %>% 
-  ggplot(aes(x = mean.total.dist, y = prop.cop, colour = hidden_treatment)) + geom_point()
-
-personality %>% filter(hidden_treatment == "similar") %>% 
-  ggplot(aes(x = individual.two, total.dist.two - total.dist.one)) + geom_point()
-
+```{r replicate}
 #fig2
 personality %>% filter(treatment != "A") %>% 
   ggplot(aes(x = treatment, y = final.plankton)) +
@@ -174,15 +201,35 @@ personality %>% filter(str_detect(treatment, "P")) %>%
 
 ##fig 5
 personality %>% filter(str_detect(treatment, "P")) %>%
-  ggplot(aes(x = prop.cop, y = final.algae, colour = treatment)) + geom_point() +
+  ggplot(aes(x = prop.cop, y = final.algae, colour = treatment)) + 
+  geom_point() +
    geom_smooth(method = "lm", aes(group = 1)) 
 
 personality %>% filter(str_detect(treatment, "P")) %>%
   ggplot(aes(x = final.plankton, y = final.algae, colour = treatment)) + geom_point() +
    geom_smooth(method = "lm", aes(group = 1)) +
   geom_smooth(method = "glm", aes(group = 1), method.args = list(family = poisson), colour = "red")
-
 ```
 
 
+```{r}
+
+#2b
+personality %>% 
+  filter(treatment %in% c("1P", "2P")) %>% 
+lm(final.plankton ~  mean.total.dist * treatment, data = .) %>% 
+  summary()
+
+personality %>% 
+  filter(treatment %in% c("1P", "2P")) %>% 
+glm(final.plankton ~  mean.total.dist * treatment, data = ., family = poisson) %>% 
+  summary()
+
+
+personality %>%
+  filter(treatment == "2P") %>% 
+  ggplot(aes(x = factor(cannibalism), y = prop.cop)) + geom_point() +
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), colour = "red") 
+
+```
 
