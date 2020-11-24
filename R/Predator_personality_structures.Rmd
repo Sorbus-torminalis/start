@@ -161,20 +161,74 @@ One possible explanation is that the counts are approximate for the final algae 
 Curiously, another paper by the same authors also has an uneven distribution of last digits with few threes. 
 https://pubpeer.com/publications/43DF36777257259B8F6FED576F96F3#4
 
-## Replication
+## Method confusion
+
+As #1 has pointed out, there is confusion as to what sort of model was fitted in the models predicting the zooplankton and algal abundances from activity rate and treatment. 
+The figures (2b, 3b, 4b) all show straight lines, indicative of ordinary least squares, but the captions report that 
+
+> Best fit lines are predicted values from a GLM.
+
+This could actually be true is the Gaussian family is chosen (or used by default if the `family` argument to `glm` is not set).
+
+The methods' section is unclear what was done. 
+First it reports:
+
+> We used LMs to test the effects of predator personality on zooplankton abundance, community structure and algal abundance in mesocosms. 
+
+Later in the same paragraph, it appears to contradict this:
+
+>We first used a Poisson GLM to test for differences in total prey abundance, including treatment and activity rate as main effects.
+
+A Poisson GLM is also reported the algal abundances, and the binomial GLM for the proportion copepod.
+
+Finally, the paper reports that:
+
+> Statistical analyses were conducted in R (...) using the base and ‘lme4’ packages (...).
+
+It is not clear why the `lme4` package was used as none of the analyses appear to use a mixed effect model (nor do mixed effect models appear to be appropriate).
+
+I can replicate the some of the analyses (for example p-value of interaction of activity and treatment on zooplankton abundance) only using `lm`.
+
+Please can the authors clarify which methods they used for these analyses, justify their decision, and archive the code used.
+
+
 
 ```{r replicate}
 #fig2
+mod2a <- personality %>% filter(treatment != "A") %>% 
+  glm(final.plankton ~ treatment, data = ., family = "poisson") %>% 
+  predict(newdata = tibble(treatment = c("1P", "2P", "D")), type = "link", se.fit = TRUE)
+
+personality %>% filter(treatment != "A") %>% group_by(treatment) %>% 
+  summarise(m = mean(final.plankton), v = var(final.plankton), sd = sqrt(v))
+
+ex <- 1.96
+mod2a_pred <- tibble(
+  treatment = c("1P", "2P", "D"), 
+  y = mod2a$fit,
+  ymax = mod2a$fit + mod2a$se.fit * ex,
+  ymin = mod2a$fit - mod2a$se.fit * ex) %>% 
+  mutate(across(starts_with("y"), exp))
+
+ggplot(mod2a_pred, aes(x = treatment, y = y, ymax = ymax, ymin = ymin)) + 
+  geom_pointrange()
+
 personality %>% filter(treatment != "A") %>% 
   ggplot(aes(x = treatment, y = final.plankton)) +
-    geom_violin() +
+    geom_violin(draw_quantiles = (0.25 * 1:3)) +
   geom_jitter() +
-  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), colour = "red") 
+  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), colour = "red") +
+  scale_y_continuous(limits = c(0, 200), expand = c(0, 0), breaks = seq(0, 200, 40))
+
 personality %>% filter(str_detect(treatment, "P")) %>% 
   ggplot(aes(x = mean.total.dist, y = final.plankton, colour = treatment)) +
     geom_point() +
-  geom_smooth(method = "lm") 
+  geom_smooth(method = "lm", se = FALSE) +
+  geom_smooth(method = "glm", method.args = list(family = poisson), linetype = "dashed", se = FALSE)
 
+```
+
+```{r}
 #fig3
 
 personality %>% filter(treatment != "A") %>%
@@ -183,10 +237,13 @@ personality %>% filter(treatment != "A") %>%
   geom_jitter() +
   stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), colour = "red") 
 personality %>% filter(str_detect(treatment, "P")) %>% 
-  ggplot(aes(x = mean.total.dist, y = prop.cop, colour = treatment)) +
+  ggplot(aes(x = mean.total.dist, y = prop.cop, colour = treatment, weight = final.plankton)) +
     geom_point() +
-  geom_smooth(method = "lm") 
+  geom_smooth(method = "lm") +
+  geom_smooth(method = "glm", method.args = list(family = binomial), linetype = "dashed")
+```
 
+```{r}
 #fig4
 
 personality %>%
@@ -194,6 +251,7 @@ personality %>%
     geom_violin() +
   geom_jitter() +
   stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), colour = "red") 
+
 personality %>% filter(str_detect(treatment, "P")) %>% 
   ggplot(aes(x = mean.total.dist, y = final.algae, colour = treatment)) +
     geom_point() +
@@ -212,7 +270,7 @@ personality %>% filter(str_detect(treatment, "P")) %>%
 ```
 
 
-```{r}
+```{r eval = FALSE}
 
 #2b
 personality %>% 
@@ -225,6 +283,19 @@ personality %>%
 glm(final.plankton ~  mean.total.dist * treatment, data = ., family = poisson) %>% 
   summary()
 
+#no cannibals
+personality %>% 
+  filter(treatment %in% c("1P", "2P"), is.na(cannibalism) | cannibalism == 0) %>% 
+lm(final.plankton ~  mean.total.dist * treatment, data = .) %>% 
+  summary()
+
+personality %>% 
+  filter(treatment %in% c("1P", "2P"),  is.na(cannibalism) | cannibalism == 0) %>% 
+glm(final.plankton ~  mean.total.dist * treatment, data = ., family = poisson) %>% 
+  summary()
+
+
+
 
 personality %>%
   filter(treatment == "2P") %>% 
@@ -233,3 +304,42 @@ personality %>%
 
 ```
 
+## Supplementary analyses
+
+Appendix B reports an an analysis of the effect of the difference in predator activity on the response variables.
+A `gls` is used to account for unequal variance. 
+Unfortunately, it is not clear from the text which variance function was used nor how it was parametrised.
+Neither is it clear which variables were used as predictors in the model (in addition to the difference between activities, it would seem sensible to include mean activity as it has already been shown to have a large effect).
+As a result of these omissions, I have been unable to replicate the results in appendix B.
+
+```{r appendix-B, eval = FALSE}
+library(nlme)
+library(broom.mixed)
+
+personality %>% 
+  filter(treatment == "2P") %>% 
+  mutate(delta = total.dist.two - total.dist.one) %>% 
+  ggplot(aes(x = delta, y = final.plankton, colour = factor(cannibalism))) +
+  geom_point() +
+  geom_smooth(method = "lm", aes(group = 1), se = FALSE)
+
+
+personality %>% 
+  filter(treatment == "2P") %>% 
+  mutate(delta = total.dist.two - total.dist.one) %>%
+  select(mean.total.dist, delta, cannibalism, final.plankton, prop.cop, final.algae) %>% 
+  pivot_longer(c(final.plankton, prop.cop, final.algae)) %>% 
+  group_by(name) %>% 
+  nest() %>% 
+  mutate(gls = map(data, ~gls(value ~ delta + mean.total.dist, # predictors unknown  
+                              data = .x, 
+                              weights = varFixed(~ mean.total.dist))),# variance structure unknown
+         res = map(gls, tidy)
+         ) %>%
+  unnest(res) %>% 
+  select(-data, -gls) %>% 
+  filter(term != "(Intercept)")
+  
+```
+
+Code to reproduce these analyses can be found at https://github.com/Sorbus-torminalis/start/blob/main/R/Predator_personality_structures.Rmd
