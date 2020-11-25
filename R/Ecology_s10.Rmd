@@ -68,7 +68,7 @@ One possibility is that the non-integer counts are the mean of several trials wi
 If so, this should have been described in the methods (number of replicates, how much time between trials, etc.).
 However, the small difference (~0.02) in the number of larvae consumed by the larvae with activities of 46 & 56 can only be explained if an impractically large number of trial (~ 50) are used.
 
-Another possibility is that partially devoured _Daphnia_ are counted.
+Another possibility is that partially devoured _Daphnia_ are counted, which would make little sense as a half-eaten _Daphnia_ is unlikely to thrive.
 
 Another paper by the same authors reports a similar feeding trial (Ecology Letters 2017; https://doi.org/10.1111/ele.12735).
 The Ecology Letters feeding trial uses the same number of the same species but a different experimental setting (Petri dish vs 4L tanks; 24 hours vs 1 hour).
