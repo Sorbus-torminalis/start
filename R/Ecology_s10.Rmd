@@ -1,0 +1,80 @@
+---
+title: "Ecology 2019"
+author: "Sorbus torminalis"
+date: "11/11/2020"
+output:
+  bookdown::html_document2:
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r digitised-data, eval = FALSE}
+library(tidyverse)
+s10 <- read_csv( 
+"Activity, Daphnia
+0.004009048996305609, 2.705673758865248
+7.051774004180864, 3.25531914893617
+14.09796397583116, 3.7659574468085104
+20.00873399959909, 4.156028368794327
+25.08762635663354, 3.9432624113475176
+31.002405429397786, 4.432624113475177
+38.05647031871939, 5.138297872340425
+46.03462100168953, 4.7304964539007095
+56.04879585349789, 4.74822695035461
+62.12050055840325, 5.124113475177305
+")
+
+#fit model
+mod <- lm(log(Daphnia) ~ log(Activity + 1), data = s10) # +1 not in methods but necessary to avoid log(0)
+summary(mod)# reproduces results on page 7
+plot(mod)
+
+#make predictions
+nd <- tibble(Activity = 0:62)
+nd$log_Daphnia <- predict(mod, newdata = nd)
+
+#transformed
+ggplot(s10, aes(x = log(Activity + 1), y = log(Daphnia))) +
+  geom_point() +
+  geom_line(data = nd, aes(x = log(Activity + 1), y = log_Daphnia))
+
+#untransformed space
+ggplot(s10, aes(x = Activity, y = Daphnia)) +
+  geom_point() +
+  geom_line(data = nd, aes(x = Activity, y = exp(log_Daphnia)))
+
+```
+
+
+
+Most of the data in this paper are presented as summary statistics. 
+One exception is the data from the feeding trial.
+
+> We conducted feeding trials for 10 Epitheca selected to represent a range of high and low activity rate individuals. We began by introducing each individual to a separate 4-L tank filled with filtered pond water. After allowing individuals to acclimate for 24 h, we introduced ten adult Daphnia sp., counting the number of Daphnia remaining after one hour.
+
+Given this description, the data should consist of ten _Daphnia_ counts (integers) with the associated activity.
+
+However, none of the ten response values in figure S10 are integers.
+This plot has untransformed axes.
+
+I digitised figure S10 and can fit a linear model that approximately reproduces the figure and reported effect size and uncertainty.
+
+Please can the authors explain why there are non-integer counts.
+
+One possibility is that the non-integer counts are the mean of several trials with each larvae. 
+If so, this should have been described in the methods (number of replicates, how much time between trials, etc.).
+However, the small difference (~0.02) in the number of larvae consumed by the larvae with activities of 46 & 56 can only be explained if an impractically large number of trial (~ 50) are used.
+
+Another possibility is that partially devoured _Daphnia_ are counted.
+
+Another paper by the same authors reports a similar feeding trial (Ecology Letters 2017; https://doi.org/10.1111/ele.12735).
+The Ecology Letters feeding trial uses the same number of the same species but a different experimental setting (Petri dish vs 4L tanks; 24 hours vs 1 hour).
+It shows a very tidy linear relationship between the number of _Daphnia_ consumed (all integers) and predator activity.
+
+Please can the authors explain why different experimental setting were used in the different papers and how this could change a linear response with no evidence of curvature to a strongly saturating response.
+
+
+
