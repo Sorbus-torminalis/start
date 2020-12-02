@@ -65,9 +65,9 @@ The paper report that
 As #1 observes, this does not be the case as in treatment 2P the pairs of larvae either have very similar or dissimilar activities.
 Plotting activity against cup number (Fig. \@ref(fig:activity-cup)) makes this pattern clearer. 
 It appears that the pattern observed by #1 is not a hidden treatment but a systematic attempt to cover all parts of the activity space (low-low, low-high, high-high).
-Furthermore, the regular pattern in the allocation to treatment shown by the grey line in (Fig. \@ref(fig:ranked-activity)) suggests that allocation to treatment was not done randomly random but in a systematic fashion by activity.
+Furthermore, the regular pattern in the allocation to treatment shown by the grey line in (Fig. \@ref(fig:ranked-activity)) suggests that allocation to treatment was not done randomly random but in a systematic fashion by activity as, for example, larvae with adjacent ranks are never allocated to consecutive cups in treatment 1P
 
-Please can the authors explain the apparent discrepancy between the description of the methods and the patterns in the data.
+Please can the authors explain the apparent discrepancy between the description of the methods and what the data suggest was done.
 
 ```{r}
 # personality %>% 
@@ -90,7 +90,8 @@ personality %>%
   filter(!is.na(value)) %>% 
   ggplot(aes(x = cup, y = value,  colour = name)) + 
   geom_point() + 
-  facet_wrap(~ treatment, scales = "free_x")
+  facet_wrap(~ treatment, scales = "free_x") +
+  labs(x = "Cup number", y = "Activity")
  
 ```
  
@@ -119,14 +120,15 @@ personality %>%
   arrange(desc(rank)) %>% 
   ggplot(aes(x = cup, y = rank, colour = n, shape = treatment)) + 
   geom_point() +
-  geom_path(group = 1, colour = "grey40") 
+  geom_path(group = 1, colour = "grey40") +
+  labs(x = "Cup number", y = "Rank activity")
 ```
 
 ## Last digits of the response variables
 
-The distribution of the digits of the response variables should be approximately uniform, but they are not for final.plankton or final algae (Fig. \@ref(fir:last-digit)).
+The distribution of the digits of the response variables should be approximately uniform, but they are not for final.plankton or final algae (Fig. \@ref(fig:last-digit)).
 
-```{r last-digit, fig.cap = "Distribution of the last digit of the response variables."}
+```{r last-digit, fig.cap = "Distribution of the last digit of the response variables. Dashed red line shows the expected value.", message = FALSE}
 personality_last <- personality %>% 
   select(treatment, starts_with("final")) %>% 
   pivot_longer(-treatment) %>% 
@@ -137,6 +139,7 @@ personality_last <- personality %>%
 
 ggplot(personality_last, aes(x = last, y = n)) +
   geom_col(orientation = "x") +
+  geom_hline(aes(yintercept = expected), data = personality_last %>% group_by(name) %>% summarise(expected = sum(n)/10), colour = "red", linetype = "dashed") +
   facet_wrap( ~ name, ncol = 1) +
   scale_x_continuous(breaks = 0:9) +
   labs(x = "Last digit", y = "Frequency")
@@ -156,9 +159,10 @@ personality_last %>%
 #   select(-last) %>% 
 #   cor()
 ```
+
 One possible explanation is that the counts are approximate for the final algae and final plankton, but that the counts are exact for the copepods which have much lower counts.
 
-Curiously, another paper by the same authors also has an uneven distribution of last digits with few threes. 
+Another paper by the same authors also has an uneven distribution of last digits with few threes. 
 https://pubpeer.com/publications/43DF36777257259B8F6FED576F96F3#4
 
 ## Method confusion
@@ -187,38 +191,69 @@ Finally, the paper reports that:
 
 It is not clear why the `lme4` package was used as none of the analyses appear to use a mixed effect model (nor do mixed effect models appear to be appropriate).
 
-I can replicate the some of the analyses (for example p-value of interaction of activity and treatment on zooplankton abundance) only using `lm`.
+I can replicate the figures showing the regression lines and some of the numerical results (for example p-value of interaction of activity and treatment on zooplankton abundance) using `lm`.
+For other numerical results, there is insufficient information. 
 
 Please can the authors clarify which methods they used for these analyses, justify their decision, and archive the code used.
 
+### Figure 2a, 3a, and 4a
 
+Figure 2a and 4a show the abundance of zooplankton and algae, respectively, and figure 3a shows the relative abundance of copepods. 
+The figure captions all report that 
 
-```{r replicate}
-#fig2
-mod2a <- personality %>% filter(treatment != "A") %>% 
+> Error bars represent 1 SD
+
+The error bars are not symmetrical about the central value for each treatment (
+from the raw data, these central values appears to be the means).
+
+The error bars are not 1 SD, as this would give wider and symmetrical errors. 
+Nor are they the standard errors of a Poisson model, as these would be narrower (and almost symmetrical) (Fig \@ref(fig:fig-2a)).
+
+```{r fig-2a, fig.cap = "Central point and error bars either digitised from the figure 2a or calculated in different ways for treatment 1P. Raw data with violin plot showing quartiles also shown.", message = FALSE}
+digitised <- tibble(
+  lower = 75.7396449704142, 
+  central = 81.65680473372781, 
+  upper =  94.67455621301775)
+
+#poisson model
+mod2a <- personality %>% 
+  filter(treatment != "A") %>% 
   glm(final.plankton ~ treatment, data = ., family = "poisson") %>% 
   predict(newdata = tibble(treatment = c("1P", "2P", "D")), type = "link", se.fit = TRUE)
 
-personality %>% filter(treatment != "A") %>% group_by(treatment) %>% 
-  summarise(m = mean(final.plankton), v = var(final.plankton), sd = sqrt(v))
-
-ex <- 1.96
+ex <- 1
 mod2a_pred <- tibble(
   treatment = c("1P", "2P", "D"), 
-  y = mod2a$fit,
-  ymax = mod2a$fit + mod2a$se.fit * ex,
-  ymin = mod2a$fit - mod2a$se.fit * ex) %>% 
-  mutate(across(starts_with("y"), exp))
+  central = mod2a$fit,
+  upper = central + mod2a$se.fit * ex,
+  lower = central - mod2a$se.fit * ex) %>% 
+  mutate(across(-treatment, exp))
 
-ggplot(mod2a_pred, aes(x = treatment, y = y, ymax = ymax, ymin = ymin)) + 
-  geom_pointrange()
 
-personality %>% filter(treatment != "A") %>% 
-  ggplot(aes(x = treatment, y = final.plankton)) +
-    geom_violin(draw_quantiles = (0.25 * 1:3)) +
-  geom_jitter() +
-  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), colour = "red") +
-  scale_y_continuous(limits = c(0, 200), expand = c(0, 0), breaks = seq(0, 200, 40))
+# mean sd
+mean_sd <- personality %>% 
+  filter(treatment != "A") %>% 
+  group_by(treatment) %>% 
+  summarise(central = mean(final.plankton), med = median(final.plankton), sd = sd(final.plankton), lower = central - sd, upper = central + sd)
+
+
+bind_rows(Digitised = digitised,
+          "Mean +/- sd" = mean_sd %>% filter(treatment == "1P"), 
+          "Poisson glm +/- se" = mod2a_pred %>% filter(treatment == "1P"),
+          .id = "method") %>% 
+  ggplot(aes(x = method, y = central, ymin = lower, ymax = upper)) +
+  geom_pointrange() +
+    geom_violin(aes(x = "Raw", y = final.plankton),
+                data = personality %>% filter(treatment == "1P"), draw_quantiles = (0.25 * 1:3), inherit.aes = FALSE) +
+  geom_jitter(aes(x = "Raw", y = final.plankton),
+                data = personality %>% filter(treatment == "1P"), inherit.aes = FALSE) 
+```
+
+Please can the authors state how they calculated the error bars on these plots.
+
+
+```{r replicate, eval = FALSE}
+#fig2b
 
 personality %>% filter(str_detect(treatment, "P")) %>% 
   ggplot(aes(x = mean.total.dist, y = final.plankton, colour = treatment)) +
@@ -228,7 +263,7 @@ personality %>% filter(str_detect(treatment, "P")) %>%
 
 ```
 
-```{r}
+```{r, eval = FALSE}
 #fig3
 
 personality %>% filter(treatment != "A") %>%
@@ -236,6 +271,7 @@ personality %>% filter(treatment != "A") %>%
     geom_violin() +
   geom_jitter() +
   stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), colour = "red") 
+
 personality %>% filter(str_detect(treatment, "P")) %>% 
   ggplot(aes(x = mean.total.dist, y = prop.cop, colour = treatment, weight = final.plankton)) +
     geom_point() +
@@ -243,7 +279,7 @@ personality %>% filter(str_detect(treatment, "P")) %>%
   geom_smooth(method = "glm", method.args = list(family = binomial), linetype = "dashed")
 ```
 
-```{r}
+```{r, eval = FALSE}
 #fig4
 
 personality %>%
@@ -295,8 +331,6 @@ glm(final.plankton ~  mean.total.dist * treatment, data = ., family = poisson) %
   summary()
 
 
-
-
 personality %>%
   filter(treatment == "2P") %>% 
   ggplot(aes(x = factor(cannibalism), y = prop.cop)) + geom_point() +
@@ -304,7 +338,7 @@ personality %>%
 
 ```
 
-## Supplementary analyses
+### Supplementary analyses
 
 Appendix B reports an an analysis of the effect of the difference in predator activity on the response variables.
 A `gls` is used to account for unequal variance. 
@@ -341,5 +375,7 @@ personality %>%
   filter(term != "(Intercept)")
   
 ```
+
+## Code for reproduction
 
 Code to reproduce these analyses can be found at https://github.com/Sorbus-torminalis/start/blob/main/R/Predator_personality_structures.Rmd
