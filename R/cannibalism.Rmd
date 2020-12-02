@@ -99,3 +99,22 @@ An independent dataset of damselfly head width measurements (https://doi.org/10.
 Do the authors have any explanation for this pattern in the first set of width measurements?
 
 Code to reproduce these analyses can be found at [https://github.com/Sorbus-torminalis/start/blob/main/R/cannibalism.Rmd](https://github.com/Sorbus-torminalis/start/blob/main/R/cannibalism.Rmd)
+
+
+
+## EXTRA - extended analysis of last digits
+
+```{r, last-extended}
+library(twopointzerothree)
+
+## HW1 - last pair of digits
+last2 <- cannibals %>% 
+  select(matches("^T1_Hw_\\d")) %>% 
+  pivot_longer(everything()) %>% 
+  filter(!is.na(value)) %>% 
+  pull(value) %>%
+  last2_diff_test(10000)
+last2$p
+
+autoplot(last2)
+```
