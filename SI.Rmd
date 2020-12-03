@@ -89,6 +89,8 @@ personality %>%
   geom_point() +
   geom_path(group = 1, colour = "grey40") +
   labs(x = "Cup number", y = "Rank activity")
+
+
 ```
 
 ## Terminal digits of the response variables
@@ -122,135 +124,6 @@ personality_last %>%
 ```
 ## Method confusion
 
-### Figure 2a, 3a, and 4a
-
-```{r fig-2a, fig.cap = "Central point and error bars either digitised from the figure 2a or calculated in different ways for treatment 1P. Raw data with violin plot showing quartiles also shown.", message = FALSE}
-digitised <- tibble(
-  lower = 75.7396449704142, 
-  central = 81.65680473372781, 
-  upper =  94.67455621301775)
-
-#poisson model
-mod2a <- personality %>% 
-  filter(treatment != "A") %>% 
-  glm(final.plankton ~ treatment, data = ., family = "poisson") %>% 
-  predict(newdata = tibble(treatment = c("1P", "2P", "D")), type = "link", se.fit = TRUE)
-
-ex <- 1
-mod2a_pred <- tibble(
-  treatment = c("1P", "2P", "D"), 
-  central = mod2a$fit,
-  upper = central + mod2a$se.fit * ex,
-  lower = central - mod2a$se.fit * ex) %>% 
-  mutate(across(-treatment, exp))
-
-
-# mean sd
-mean_sd <- personality %>% 
-  filter(treatment != "A") %>% 
-  group_by(treatment) %>% 
-  summarise(central = mean(final.plankton), med = median(final.plankton), sd = sd(final.plankton), lower = central - sd, upper = central + sd)
-
-
-bind_rows(Digitised = digitised,
-          "Mean +/- sd" = mean_sd %>% filter(treatment == "1P"), 
-          "Poisson glm +/- se" = mod2a_pred %>% filter(treatment == "1P"),
-          .id = "method") %>% 
-  ggplot(aes(x = method, y = central, ymin = lower, ymax = upper)) +
-  geom_pointrange() +
-    geom_violin(aes(x = "Raw", y = final.plankton),
-                data = personality %>% filter(treatment == "1P"), draw_quantiles = (0.25 * 1:3), inherit.aes = FALSE) +
-  geom_jitter(aes(x = "Raw", y = final.plankton),
-                data = personality %>% filter(treatment == "1P"), inherit.aes = FALSE) 
-```
-
-
-
-```{r replicate, eval = FALSE}
-#fig2b
-
-personality %>% filter(str_detect(treatment, "P")) %>% 
-  ggplot(aes(x = mean.total.dist, y = final.plankton, colour = treatment)) +
-    geom_point() +
-  geom_smooth(method = "lm", se = FALSE) +
-  geom_smooth(method = "glm", method.args = list(family = poisson), linetype = "dashed", se = FALSE)
-
-```
-
-```{r, eval = FALSE}
-#fig3
-
-personality %>% filter(treatment != "A") %>%
-  ggplot(aes(x = treatment, y = prop.cop)) +
-    geom_violin() +
-  geom_jitter() +
-  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), colour = "red") 
-
-personality %>% filter(str_detect(treatment, "P")) %>% 
-  ggplot(aes(x = mean.total.dist, y = prop.cop, colour = treatment, weight = final.plankton)) +
-    geom_point() +
-  geom_smooth(method = "lm") +
-  geom_smooth(method = "glm", method.args = list(family = binomial), linetype = "dashed")
-```
-
-```{r, eval = FALSE}
-#fig4
-
-personality %>%
-  ggplot(aes(x = treatment, y = final.algae)) +
-    geom_violin() +
-  geom_jitter() +
-  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), colour = "red") 
-
-personality %>% filter(str_detect(treatment, "P")) %>% 
-  ggplot(aes(x = mean.total.dist, y = final.algae, colour = treatment)) +
-    geom_point() +
-  geom_smooth(method = "lm") 
-
-##fig 5
-personality %>% filter(str_detect(treatment, "P")) %>%
-  ggplot(aes(x = prop.cop, y = final.algae, colour = treatment)) + 
-  geom_point() +
-   geom_smooth(method = "lm", aes(group = 1)) 
-
-personality %>% filter(str_detect(treatment, "P")) %>%
-  ggplot(aes(x = final.plankton, y = final.algae, colour = treatment)) + geom_point() +
-   geom_smooth(method = "lm", aes(group = 1)) +
-  geom_smooth(method = "glm", aes(group = 1), method.args = list(family = poisson), colour = "red")
-```
-
-
-```{r eval = FALSE}
-
-#2b
-personality %>% 
-  filter(treatment %in% c("1P", "2P")) %>% 
-lm(final.plankton ~  mean.total.dist * treatment, data = .) %>% 
-  summary()
-
-personality %>% 
-  filter(treatment %in% c("1P", "2P")) %>% 
-glm(final.plankton ~  mean.total.dist * treatment, data = ., family = poisson) %>% 
-  summary()
-
-#no cannibals
-personality %>% 
-  filter(treatment %in% c("1P", "2P"), is.na(cannibalism) | cannibalism == 0) %>% 
-lm(final.plankton ~  mean.total.dist * treatment, data = .) %>% 
-  summary()
-
-personality %>% 
-  filter(treatment %in% c("1P", "2P"),  is.na(cannibalism) | cannibalism == 0) %>% 
-glm(final.plankton ~  mean.total.dist * treatment, data = ., family = poisson) %>% 
-  summary()
-
-
-personality %>%
-  filter(treatment == "2P") %>% 
-  ggplot(aes(x = factor(cannibalism), y = prop.cop)) + geom_point() +
-  stat_summary(fun.data = mean_sdl, fun.args = list(mult = 1), colour = "red") 
-
-```
 
 
 
