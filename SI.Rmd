@@ -35,6 +35,16 @@ if(!fs::file_exists(here("data", "jeb13261-sup-0003-SupInfo.xlsx"))){
   print("Downloading file")
   download.file("https://onlinelibrary.wiley.com/action/downloadSupplement?doi=10.1111%2Fjeb.13261&file=jeb13261-sup-0003-SupInfo.xlsx", destfile = here("data", "jeb13261-sup-0003-SupInfo.xlsx")) 
 }
+
+# Cannibalism
+if(!fs::file_exists(here("data", "cannibalism_damsel_warming_april10_2017.xlsx"))){
+  print("Downloading file")
+  filelocation <- rdryad::dryad_download("10.5061/dryad.7f0c4")
+  fs::file_move(
+    path = filelocation[[1]], 
+    new_path = here("data", "cannibalism_damsel_warming_april10_2017.xlsx")
+  ) 
+}
 ```
 
 
@@ -47,7 +57,15 @@ personality <- readxl::read_excel(
 # camouflage
 algae_survival <- readxl::read_xlsx(here("data", "jeb13261-sup-0003-SupInfo.xlsx"), sheet = "Sheet1") %>% 
   mutate(across(-activity, as.factor))
+
+# Cannibalism
+cannibals <- readxl::read_xlsx(
+  path = here("data", "cannibalism_damsel_warming_april10_2017.xlsx"), 
+  sheet = "Experiment1-matrix", na = "NA")
 ```
+
+
+
 
 ## Predator Personalities
 
@@ -143,3 +161,23 @@ personality_last %>%
 
 # Camouflage
 
+
+# Cannibalism
+
+```{r cannibals-terminal}
+cannibal_last <- cannibals %>% 
+  select(matches("^T1_Hw_\\d")) %>% 
+  pivot_longer(everything(), names_pattern = "^(T\\d)_Hw_(\\d)$", names_to = c("Time", "Individual")) %>% 
+  filter(!is.na(value)) %>% 
+  mutate(last = value %% 10) %>%
+  count(last)
+
+n_widths <- cannibal_last %>% summarise(n_tot = sum(n))
+n_widths
+
+ggplot(cannibal_last, aes(x = last, y = n)) +
+  geom_col(orientation = "x") +
+  geom_hline(aes(yintercept = expected), data = cannibal_last %>% summarise(expected = sum(n)/10), colour = "red", linetype = "dashed") +
+  scale_x_continuous(breaks = 0:9) +
+  labs(x = "Terminal digit", y = "Frequency")
+```
