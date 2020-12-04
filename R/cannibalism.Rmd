@@ -30,7 +30,8 @@ if(!fs::file_exists(here("data", "cannibalism_damsel_warming_april10_2017.xlsx")
 ```{r import}
 cannibals <- readxl::read_xlsx(
   path = here("data", "cannibalism_damsel_warming_april10_2017.xlsx"), 
-  sheet = "Experiment1-matrix", na = "NA")
+  sheet = "Experiment1-matrix", na = "NA") %>% 
+  filter(!is.na(label))
 ```
 
 
@@ -118,3 +119,47 @@ last2$p
 
 autoplot(last2)
 ```
+
+## Round 2
+
+```{r}
+cannibals %>% ggplot(aes(x = Timing, y = T1_Hw_1 - T1_Hw_2, colour = factor(Warming))) + 
+  #geom_point(position = position_dodge(width = 1)) + 
+  stat_summary(fun.data ="mean_sdl", fun.args = list(mult = 1), position = position_dodge(width = 1))
+cannibals %>% ggplot(aes(x = Timing, y = T1_Hw_diff, colour = factor(Warming))) + 
+#  geom_point(position = position_dodge(width = 1)) + 
+  stat_summary(fun.data ="mean_sdl", fun.args = list(mult = 1), position = position_dodge(width = 1))
+
+cannibals %>% group_by(Warming, Timing) %>% 
+  summarise(pre_calc_mean = mean(T1_Hw_diff, na.rm = TRUE), pre_calc_sd = sd(T1_Hw_diff, na.rm = TRUE),
+            mean = mean(T1_Hw_1 - T1_Hw_2, na.rm = TRUE), sd = sd(T1_Hw_1 - T1_Hw_2, na.rm = TRUE))
+
+
+```
+
+
+There is another unexpected pattern in the head width data for T1.
+
+For Timing = 0, the mean difference between the head widths is zero for both levels of warming (this is the difference calculate from the two head widths, not the pre-calculated difference).
+
+If one takes the data for Timing = 0 and, within each warming treatment, sorts the head width data for each individual, the sorted values are identical.
+
+The head width measurements for the second individual are identical to the permuted head width measurements of the first. 
+
+Given that there are 15 replicates of each treatment, and values span a range of at least 60 units, it seems unlikely that this pattern would happen by chance.
+
+Please can the authors explain what happened.
+
+```{r echo = TRUE}
+sorted_HW <- cannibals %>% 
+  select(Timing, Warming, matches("T1_Hw_\\d")) %>%
+  filter(Timing == 0) %>%
+  group_by(Warming) %>% 
+  transmute(T1_Hw_1_sort = sort(T1_Hw_1), T1_Hw_2_sort = sort(T1_Hw_2)) 
+
+identical(sorted_HW$T1_Hw_1_sort, sorted_HW$T1_Hw_2_sort)
+
+sorted_HW %>% pander::pander(style = "rmarkdown")
+```
+
+
