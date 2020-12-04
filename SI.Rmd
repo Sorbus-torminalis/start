@@ -67,6 +67,7 @@ if(!fs::file_exists(here("data", "cannibalism_damsel_warming_april10_2017.xlsx")
 }
 ```
 
+## Import data
 
 ```{r import-data}
 # predator personalities
@@ -75,8 +76,11 @@ personality <- readxl::read_excel(
   sheet = "Sheet1", na = "NA")
 
 # camouflage
-algae_survival <- readxl::read_xlsx(here("data", "jeb13261-sup-0003-SupInfo.xlsx"), sheet = "Sheet1") %>% 
-  mutate(across(-activity, as.factor))
+algal_df <- readxl::read_xlsx(here("data", "jeb13261-sup-0003-SupInfo.xlsx"), sheet = "Sheet1") %>% 
+  mutate(across(-activity, as.factor)) %>% 
+  arrange(activity) %>% 
+  mutate(rownum = row_number(),
+         algae_verb = ifelse(algae == 1, "control", "algae-removed"))
 
 # Cannibalism
 cannibals <- readxl::read_xlsx(
@@ -89,9 +93,7 @@ cannibals <- readxl::read_xlsx(
 
 ## Predator Personalities
 
-## Non-random allocation of larvae
-
-
+### Non-random allocation of larvae
 
 ```{r activity-cup, fig.cap = "Activity against cup"}
 personality %>% 
@@ -103,6 +105,16 @@ personality %>%
   facet_wrap(~ treatment, scales = "free_x") +
   labs(x = "Cup number", y = "Activity")
 ```
+ 
+```{r activity, fig.cap = "Activity of different larvae"}
+personality %>% 
+  filter(treatment == "2P") %>% 
+  ggplot(aes(x = total.dist.one, y = total.dist.two)) + 
+  geom_abline(colour = "grey50") +
+  geom_point() + 
+  labs(x = "Larvae 1 activity, cm", y = "Larvae 2 activity, cm") +
+  coord_equal()
+``` 
  
  
 ```{r ranked-activity, fig.cap="Ranked activity ploted against cup number. Grey lines joins larvae by rank. Colours show when multiple larvae have the same activity."} 
@@ -144,7 +156,7 @@ published + random + patchwork::plot_layout(guides = "collect") +
 
 ```
 
-## Terminal digits of the response variables
+### Terminal digits of the response variables
 
 ```{r terminal-digit, fig.cap = "Fig 2. Distribution of the terminal digit of the response variables. Dashed red line shows the expected value.", message = FALSE}
 personality_last <- personality %>% 
@@ -175,18 +187,9 @@ personality_last %>%
   pander::pander(style = "rmarkdown", caption = "Chi square analysis of the last digits", digits = c(0, 3, 3))
 ```
 
-# Camouflage
+## Camouflage
 
-```{r camouflage, fig.cap = c("Fig 3", "S2")}
-## algae df (JEB)
-
-
-algal_df <- algae_survival %>% 
-  arrange(activity) %>% 
-  mutate(rownum = row_number(),
-         algae_verb = ifelse(algae == 1, "control", "algae-removed"))
-
-
+```{r camouflage-model, fig.cap = c("Fig 3", "S2")}
 # summary stats
 # number of activity values > 81
 sum(algal_df$activity > 81)
@@ -196,10 +199,11 @@ sum(algal_df$activity > 81)
 # start 2017 algae-activity
 summary(lm(activity ~ algae_verb, data = algal_df))
 anova(lm(activity ~ algae_verb, data = algal_df))
+```
+
+```{r camouflage-figs, fig.cap = "Fig 3"}
 
 # Start & Gilbert 2017 Fig
-
-
 
 # start 2017 figs
 start_2019_fig_a <- ggplot(data = algal_df, aes(x = tank, y = activity, colour = algae_verb)) + 
@@ -215,6 +219,11 @@ start_2019_fig_b <- ggplot(data = algal_df, aes(x = rownum, y = activity, colour
 start_2019_fig_a + start_2019_fig_b + plot_layout(guides = "collect") +
   plot_annotation(tag_levels = "A")
 
+```
+
+### Randomised camouflage plot
+
+```{r camouflage-random, fig.cap = "S2"}
 # fig s2: Fig2 but random
 # permute algae value within tanks
 set.seed(314)
@@ -246,7 +255,9 @@ start_2017_fig_s2a + start_2017_fig_s2b + plot_layout(guides = "collect") +
 
 
 
-# Cannibalism
+## Cannibalism
+
+### Terminal digit
 
 ```{r cannibals-terminal, fig.cap = "Fig S1"}
 cannibal_last <- cannibals %>% 
