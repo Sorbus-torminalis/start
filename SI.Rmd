@@ -19,7 +19,27 @@ library(patchwork)
 theme_set(theme_bw())
 ```
 
+## Check package version
+
+```{r package-version}
+if(packageVersion("dplyr") < 1){
+  stop("Please install dplyr version 1 or greater")
+}
+
+if(packageVersion("tidyr") < 1){
+  stop("Please install tidyr version 1 or greater")
+}
+```
+
+
+## Download data
+
 ```{r download-data}
+#create directory for data if it doesn't already exist
+if(!fs::dir_exists("data")){
+  fs::dir_create("data")
+}
+
 # predator personalities
 if(!fs::file_exists(here("data", "animal_personality_trophic_ecolletts2017.xlsx"))){
   print("Downloading file")
