@@ -8,7 +8,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
 ```
 
 ```{r packages}
@@ -126,7 +126,7 @@ published + random + patchwork::plot_layout(guides = "collect") +
 
 ## Terminal digits of the response variables
 
-```{r terminal-digit, fig.cap = "Distribution of the terminal digit of the response variables. Dashed red line shows the expected value.", message = FALSE}
+```{r terminal-digit, fig.cap = "Fig 2. Distribution of the terminal digit of the response variables. Dashed red line shows the expected value.", message = FALSE}
 personality_last <- personality %>% 
   select(treatment, starts_with("final")) %>% 
   pivot_longer(-treatment) %>% 
@@ -154,17 +154,81 @@ personality_last %>%
   select(Response = name, `Chi-squared statistic` = statistic, `p value` = p.value) %>% 
   pander::pander(style = "rmarkdown", caption = "Chi square analysis of the last digits", digits = c(0, 3, 3))
 ```
-## Method confusion
-
-
-
 
 # Camouflage
+
+```{r camouflage, fig.cap = c("Fig 3", "S2")}
+## algae df (JEB)
+
+
+algal_df <- algae_survival %>% 
+  arrange(activity) %>% 
+  mutate(rownum = row_number(),
+         algae_verb = ifelse(algae == 1, "control", "algae-removed"))
+
+
+# summary stats
+# number of activity values > 81
+sum(algal_df$activity > 81)
+
+# models 
+
+# start 2017 algae-activity
+summary(lm(activity ~ algae_verb, data = algal_df))
+anova(lm(activity ~ algae_verb, data = algal_df))
+
+# Start & Gilbert 2017 Fig
+
+
+
+# start 2017 figs
+start_2019_fig_a <- ggplot(data = algal_df, aes(x = tank, y = activity, colour = algae_verb)) + 
+  geom_point() + 
+  labs(x = "Tank", y = "Activity", colour = "") +
+  theme(aspect.ratio = 1) 
+
+start_2019_fig_b <- ggplot(data = algal_df, aes(x = rownum, y = activity, colour = algae_verb)) + 
+  geom_point() + 
+  theme(aspect.ratio = 1) +  
+  labs(x = "Activity rank-order", y = "Activity", colour = "")
+
+start_2019_fig_a + start_2019_fig_b + plot_layout(guides = "collect") +
+  plot_annotation(tag_levels = "A")
+
+# fig s2: Fig2 but random
+# permute algae value within tanks
+set.seed(314)
+x <- numeric(0)
+for (i in 1:10) {
+  i = sample(c(rep(0, 5), rep(1, 5)), replace = FALSE)
+  x = append(i, x)
+}
+
+algae_with_permute <- algal_df %>% 
+  arrange(tank) %>% 
+  mutate(algae_permuted = as_factor(x))
+
+
+# FigS2
+start_2017_fig_s2a <- ggplot(data = algae_with_permute, aes(x = tank, y = activity, colour = algae_permuted)) + 
+  geom_point() + 
+  labs(x = "Tank", y = "Activity", colour = "") +
+  theme(aspect.ratio = 1) 
+
+start_2017_fig_s2b <- ggplot(data = algae_with_permute, aes(x = rownum, y = activity, colour = algae_permuted)) + 
+  geom_point() + 
+  theme(aspect.ratio = 1) +  
+  labs(x = "Activity rank-order", y = "Activity", colour = "")
+
+start_2017_fig_s2a + start_2017_fig_s2b + plot_layout(guides = "collect") +
+  plot_annotation(tag_levels = "A")
+```
+
 
 
 # Cannibalism
 
-```{r cannibals-terminal}
+```{r cannibals-terminal, fig.cap = "Fig S1"}
 cannibal_last <- cannibals %>% 
   select(matches("^T1_Hw_\\d")) %>% 
   pivot_longer(everything(), names_pattern = "^(T\\d)_Hw_(\\d)$", names_to = c("Time", "Individual")) %>% 
