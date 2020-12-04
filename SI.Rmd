@@ -15,6 +15,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(here)
 library(tidyverse)
 library(broom)
+library(patchwork)
 theme_set(theme_bw())
 ```
 
@@ -34,11 +35,6 @@ if(!fs::file_exists(here("data", "jeb13261-sup-0003-SupInfo.xlsx"))){
   print("Downloading file")
   download.file("https://onlinelibrary.wiley.com/action/downloadSupplement?doi=10.1111%2Fjeb.13261&file=jeb13261-sup-0003-SupInfo.xlsx", destfile = here("data", "jeb13261-sup-0003-SupInfo.xlsx")) 
 }
-```
-
-```{r import}
-
-
 ```
 
 
@@ -73,23 +69,40 @@ personality %>%
  
 ```{r ranked-activity, fig.cap="Ranked activity ploted against cup number. Grey lines joins larvae by rank. Colours show when multiple larvae have the same activity."} 
 
-personality %>% 
+rank_activity_data <- personality %>% 
   filter(str_detect(treatment, "P")) %>% 
   select(cup, treatment, total.dist.one, total.dist.two) %>% 
   pivot_longer(starts_with("total")) %>% 
-  filter(!is.na(value)) %>% 
+  filter(!is.na(value)) 
+
+mk_plot_data <- . %>% 
   mutate(rank = rank(value, ties.method = "min")) %>% 
   select(-value) %>% 
   group_by(rank) %>% 
   mutate(n = n()) %>% 
   ungroup() %>% 
   mutate(n = factor(n)) %>% 
-  arrange(desc(rank)) %>% 
-  ggplot(aes(x = cup, y = rank, colour = n, shape = treatment)) + 
-  geom_point() +
-  geom_path(group = 1, colour = "grey40") +
-  labs(x = "Cup number", y = "Rank activity")
+  arrange(desc(rank)) 
+  
 
+published <- rank_activity_data %>% 
+  mk_plot_data() %>% 
+  ggplot(aes(x = cup, y = rank, colour = treatment, shape = n)) + 
+  geom_point() +
+  geom_path(group = 1, colour = "grey50") +
+  scale_shape_manual(values = c(16, 3, 8)) +
+  scale_colour_brewer(palette = "Set1") +
+  labs(x = "Cup number", y = "Rank activity", colour = "Treatment", shape = "Number larvae\nwith same rank")
+
+set.seed(314)
+random <- published %+% {
+  rank_activity_data %>%
+  mutate(value = sample(value)) %>% 
+  mk_plot_data() 
+  }
+
+published + random + patchwork::plot_layout(guides = "collect") +
+  plot_annotation(tag_levels = "A")
 
 ```
 
@@ -112,6 +125,7 @@ ggplot(personality_last, aes(x = last, y = n)) +
   scale_x_continuous(breaks = 0:9) +
   labs(x = "Terminal digit", y = "Frequency")
 
+# terminal digit table
 personality_last %>%
   group_by(name) %>% 
   nest() %>% 
