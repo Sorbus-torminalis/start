@@ -162,4 +162,25 @@ identical(sorted_HW$T1_Hw_1_sort, sorted_HW$T1_Hw_2_sort)
 sorted_HW %>% pander::pander(style = "rmarkdown")
 ```
 
+## Round 3
+
+Figure 2b in this paper shows activity rate for the two temperature treatments.
+
+The error bars are asymmetric, which is unexpected as the caption reports that "All error bars represent 1 s.d."
+
+
+The sheet 4 of the archived excel file for this study includes a plot the same data, also with asymmetric error bars. 
+The data elements of this plot appear to be identical to the published plot.
+
+The excel plot is based on a small table, apparently copied from a pivot table, which has columns for the mean activity and the standard deviation, and columns labelled `1.5.st.dev.activity`	and `0.5st.dev` which are used for the upper and lower error bar, respectively.
+
+Formula in the cells show that these are actually 0.8 * SD and 0.2 * SD respectively.
+
+Thus, the plot in excel, which appears identical to the published plot, does not have error bars of +/- SD but of +0.8/-0.2 SD. 
+
+I am not aware of any theoretical justification for this choice of error bar, and none is given in the paper.
+
+Please can the authors explain why they calculate error bars in this way and state whether asymmetric error bars in other papers (including https://pubpeer.com/publications/6B420F47E530C253F39D53E7576490#6) are calculated in the same way.
+
+
 
