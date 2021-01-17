@@ -236,9 +236,16 @@ mean_sd <- personality %>%
   group_by(treatment) %>% 
   summarise(central = mean(final.plankton), med = median(final.plankton), sd = sd(final.plankton), lower = central - sd, upper = central + sd)
 
+# mean sd
+skewball <- personality %>% 
+  filter(treatment != "A") %>% 
+  group_by(treatment) %>% 
+  summarise(central = mean(final.plankton), sd = sd(final.plankton), lower = central - 0.25 * sd, upper = central + 0.5 * sd)
+
 
 bind_rows(Digitised = digitised,
-          "Mean +/- sd" = mean_sd %>% filter(treatment == "1P"), 
+  #        "Mean +/- sd" = mean_sd %>% filter(treatment == "1P"), 
+          "Mean +0.8/-0.2 sd" = skewball %>% filter(treatment == "1P"),
           "Poisson glm +/- se" = mod2a_pred %>% filter(treatment == "1P"),
           .id = "method") %>% 
   ggplot(aes(x = method, y = central, ymin = lower, ymax = upper)) +
@@ -379,3 +386,127 @@ personality %>%
 ## Code for reproduction
 
 Code to reproduce these analyses can be found at https://github.com/Sorbus-torminalis/start/blob/main/R/Predator_personality_structures.Rmd
+
+
+
+# Extra error bars
+
+```{r fig-2a2, fig.cap = "Central point and error bars either digitised from the figure 2a or calculated in different ways for treatment 1P. Raw data with violin plot showing quartiles also shown.", message = FALSE}
+digitised <- tibble(
+  treatment = "1P", name = "final.plankton",
+  lower = 75.7396449704142, 
+  central = 81.65680473372781, 
+  upper =  94.67455621301775) %>% 
+  mutate(method = "digitised")
+
+fp <- read_csv(col_types = "-d",
+"x,value  
+Bar0, 74.99999999999999
+Bar1, 81.32530120481925
+Bar2, 95.18072289156625
+Bar3, 45.18072289156624
+Bar4, 51.20481927710843
+Bar5, 62.048192771084324
+Bar6, 140.3614457831325
+Bar7, 145.18072289156626
+Bar8, 154.21686746987947") %>% 
+  mutate(what = rep(c("lower", "central", "upper"), times = 3), 
+         treatment = rep(c("1P", "2P", "D"), each = 3))
+  
+pc <- read_csv(col_types = "-d",
+"x,value  
+Bar0, 0.1219135802469136
+Bar1, 0.154320987654321
+Bar2, 0.2191358024691358
+Bar3, 0.279320987654321
+Bar4, 0.32407407407407407
+Bar5, 0.412037037037037"
+) %>% 
+  mutate(what = rep(c("lower", "central", "upper"), times = 2), 
+         treatment = rep(c("1P", "2P"), each = 3))
+
+aa <- read_csv(col_types = "-d", comment = "#",
+"x,value  
+Bar0, 43.91167192429022
+Bar1, 51.48264984227129
+Bar2, 65.61514195583595
+Bar3, 68.13880126182964
+Bar4, 73.69085173501577
+Bar5, 84.79495268138803
+Bar6, NA #lower range within point
+Bar7, 16.65615141955837
+Bar8, 20.189274447949522
+Bar9, 119.11671924290219
+Bar10, 124.66876971608832
+Bar11, 136.27760252365928") %>% 
+  mutate(what = rep(c("lower", "central", "upper"), times = 4), 
+         treatment = rep(c("1P", "2P", "D", "A"), each = 3))
+
+
+
+dig <- bind_rows(
+  final.plankton = fp,
+  prop.cop = pc,
+  final.algae = aa,
+  .id = "name"
+) %>% 
+  pivot_wider(names_from = "what", values_from = "value") %>% 
+  mutate(method = "dig")
+
+
+# mean sd
+skew = c(0.25, 0.5)
+mean_sd <- personality %>% 
+  select(treatment, final.plankton, prop.cop, final.algae) %>% 
+  pivot_longer(c(final.plankton, prop.cop, final.algae)) %>% 
+  filter(!(treatment == "A" & name %in% c("final.plankton", "prop.cop"))) %>% 
+  group_by(treatment, name) %>% 
+  summarise(central = mean(value), 
+            sd = sd(value))
+
+mean_sd_skew <- bind_rows(
+  mean_sd = mean_sd %>% mutate( 
+            lower = central - sd, 
+            upper = central + sd),
+  skewed = mean_sd %>% mutate( 
+            lower = central - skew[1] * sd, 
+            upper = central + skew[2] * sd),
+  dig = dig,
+  .id = "method") %>% 
+  mutate(method = factor(method, levels = c("mean_sd","skewed", "dig")))
+
+
+mean_sd_skew %>% 
+  ggplot(aes(x = method, y = central, ymin = lower, ymax = upper)) +
+  geom_pointrange() +
+  facet_wrap(~ paste(name, treatment), scale = "free_y")
+
+
+#for lim = upper or lower. Plot |central - lim| against sd with abline slopes of 0.1 - 1
+#prop cop on different plot as different scale
+
+dig %>% 
+  full_join(mean_sd %>% select(-central), by = c("name", "treatment")) %>% 
+  mutate(low = central - lower,
+         high = upper - central,
+         type = if_else(str_detect(name, "final"), "final.plankton & final.algae", "prop.cop")) %>% 
+  select(-c(lower, central, upper, method)) %>% 
+  pivot_longer(c(low, high), names_to = "lowhigh", values_to = "delta") %>% 
+  ggplot(aes(x = sd, y = delta, colour = name, fill = name, shape = lowhigh)) +
+  geom_point() +
+  geom_abline(aes(slope = slope, intercept = 0, linetype = fct_rev(factor(slope))), tibble(slope = c(0.26, 0.53)), show.legend = TRUE) +
+  facet_wrap(~ type, scales = "free") +
+  labs(fill = "Variable", colour = "Variable", linetype = "Slope", shape = "Upper/Lower", x = "SD from data", y = "Digitised 'SD'") +
+  scale_shape_manual(values = c(24, 25)) +
+  scale_colour_brewer(palette = "Set1") +
+  scale_fill_brewer(palette = "Set1") +
+  guides(shape = guide_legend(override.aes = list(linetype = 0)), 
+         fill = guide_legend(override.aes = list(linetype = 0)))
+
+
+
+```
+
+
+
+
