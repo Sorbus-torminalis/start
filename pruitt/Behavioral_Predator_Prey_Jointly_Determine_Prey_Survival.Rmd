@@ -51,8 +51,9 @@ raw_data <- readxl::read_excel(
   path = here("data", target_file), 
   sheet = "raw data") %>% 
   clean_names() %>% 
-  filter(!is.na(mesocosm))#remove mean & SD calculations
-
+  filter(!is.na(mesocosm)) %>% #remove mean & SD calculations
+  rename(size = n_max)
+  
 repeatable <- readxl::read_excel(
   path = here("data", target_file), 
   sheet = "repeatable") %>% 
@@ -79,7 +80,8 @@ n_ruggiero_rep <- 1000
 Several papers co-authored by Professor Pruitt have been shown to contain unexplained duplication in the raw data (e.g., @Laskowski2020-retract).
 This comment reports an attempt to find duplications in @Pruitt2012.
 
-```{r}
+```{r n_snails}
+#range of number of snails per mesocosm
 n_snails <- raw_data %>% 
   count(mesocosm) %>% 
   summarise(min = min(n), mx = max(n))
@@ -90,16 +92,17 @@ n_snails <- raw_data %>%
 # Data description and methods
 
 Partial raw data for @Pruitt2012 are archived as an Excel file [@Pruitt2011_data].
-The sheet `raw data` includes data for activity, size (`N Max`), anti-predator response, and survivorship for `r nrow(raw_data)` snails in `r max(raw_data$mesocosm)` mesocosms.
+The sheet `raw data` includes data for activity, size (as `N Max`), anti-predator response, and survivorship for `r nrow(raw_data)` snails in `r max(raw_data$mesocosm)` mesocosms.
 Size and anti-predator response are presented as _z_-scores.
 Within each mesocosm, which have between `r n_snails$min` and `r n_snails$mx` snails, the data are sorted by survival and partially sorted by snail size (Fig. \@ref(fig:raw-data-plot)).
 
 ```{r raw-data-plot, fig.cap = "Raw data from mesocosm 35"}
+#example of raw data
 raw_data %>% 
-  select(mesocosm, survival_1_0, activity_level, n_max, n_anti_pred_response) %>% 
+  select(mesocosm, survival_1_0, activity_level, size, n_anti_pred_response) %>% 
   mutate(row = 1:n()) %>%
   filter(mesocosm == 35) %>% 
-  pivot_longer(c(activity_level, n_max, n_anti_pred_response)) %>% 
+  pivot_longer(c(activity_level, size, n_anti_pred_response)) %>% 
   ggplot(aes(x = row, y = value, colour = factor(survival_1_0))) +
   geom_point() +
   scale_colour_viridis_d(option = "C", end = 0.8) +
@@ -120,8 +123,9 @@ Ruggiero similarities are less likely to be lower as diversity in the measuremen
 Table \@ref(tab:cardinality) shows that the anti-predator response has the lowest cardinality and diversity, whereas these are much higher for size, an important response variable. 
 
 ```{r cardinality}
+#diversity of measurements
 diversity <- raw_data %>% 
-  select(n_max, n_anti_pred_response, activity_level) %>% 
+  select(size, n_anti_pred_response, activity_level) %>% 
   pivot_longer(everything(), names_to = "Variable") %>% 
   count(Variable, value) %>% 
   group_by(Variable) %>% 
@@ -142,13 +146,15 @@ diversity %>%
 
 
 ```{r ruggiero}
+# similarity between size measurements in different mesocosms
 ruggiero <- raw_data %>% 
-  group_by(mesocosm, n_max) %>% 
-  mutate(n_max2 = paste(n_max, 1:n(), sep = "_")) %>% 
+  group_by(mesocosm, size) %>% 
+  mutate(size2 = paste(size, 1:n(), sep = "_")) %>% 
   ungroup() %>% 
-  count(mesocosm, n_max2) %>% 
+  count(mesocosm, size2) %>% 
   sim(method = "ruggiero", listout = FALSE, listin = TRUE) 
 
+#convert distance matrix to long tibble
  ruggiero2 <- ruggiero %>% 
     as.data.frame() %>% 
     rownames_to_column(var = "xid") %>% 
@@ -156,13 +162,14 @@ ruggiero <- raw_data %>%
     filter(xid != yid) %>%  # remove diagonal
     mutate(across(everything(), as.numeric))
  
+#find similarity of mesocosms with permuted data 
 random_ruggiero <- rerun(n_ruggiero_rep, {
   ruggiero <- raw_data %>% 
-    mutate(n_max = sample(n_max)) %>% #randomise
-    group_by(mesocosm, n_max) %>% 
-    mutate(n_max2 = paste(n_max, 1:n(), sep = "_")) %>% 
+    mutate(size = sample(size)) %>% #randomise
+    group_by(mesocosm, size) %>% 
+    mutate(size2 = paste(size, 1:n(), sep = "_")) %>% 
     ungroup() %>% 
-    count(mesocosm, n_max2) %>% 
+    count(mesocosm, size2) %>% 
     sim(method = "ruggiero", listout = FALSE, listin = TRUE) 
 
  ruggiero %>% 
@@ -188,7 +195,7 @@ rugg_size_hist <- ruggiero2 %>%
   geom_histogram(bins = 30) +
   labs(x = "Ruggiero similarity")
  
-#random max
+#random max similarity
 rugg_rand_hist <- random_ruggiero %>% 
   set_names(1:length(.)) %>% 
   bind_rows(.id = "n") %>% 
@@ -198,6 +205,7 @@ rugg_rand_hist <- random_ruggiero %>%
   geom_histogram(bins = 20) +
   labs(x = "Maximum Ruggiero similarity")
 
+#raster
 rugg_raster <- ruggiero2 %>% 
     ggplot(aes(x = xid, y = yid, fill = rug)) + 
     geom_raster() +
@@ -207,26 +215,33 @@ rugg_raster <- ruggiero2 %>%
     labs(x = "Mesocosm 1", y = "Mesocosm 2", fill = "Ruggiero\nsimilarity") +
   theme(panel.grid = element_blank())
 
+#compile plots with patchwork
 (rugg_rand_hist + rugg_size_hist) / rugg_raster +
   patchwork::plot_annotation(tag_levels = "A") + plot_layout(heights = c(0.3, 0.7))
 ```
 
 ```{r, eval = FALSE}
+
 ruggiero2 %>% filter(rug  >0.9) %>% 
   rename(`Mesococsm 1` = xid, `Mesococsm 2` = yid, "Ruggiero similarity" = rug)
 
-
+#look at pairs of mesocosms
+#in a table
 a <- raw_data %>% 
   filter(mesocosm %in% c(3, 4)) %>% 
-  select(mesocosm, n_max) %>% 
+  select(mesocosm, size) %>% 
   group_by(mesocosm) %>% 
   mutate(n = row_number(),
-         n_max = sort(n_max)) %>% 
-  pivot_wider(names_from = mesocosm, values_from = n_max)
+         size = sort(size)) %>% 
+  pivot_wider(names_from = mesocosm, values_from = size)
 a
-raw_data %>% filter(mesocosm == 6) %>% 
-  mutate(in4 = n_max %in% (raw_data %>% filter(mesocosm == 5) %>% pull(n_max))) %>% 
-  ggplot(aes(x = 1:nrow(.), y = n_max, colour = in4)) + geom_point()
+#graphically
+raw_data %>% 
+  mutate(n = 1:nrow(.)) %>% 
+  filter(mesocosm == 45) %>% 
+  mutate(in4 = size %in% (raw_data %>% filter(mesocosm == 29) %>% pull(size))) %>% 
+  ggplot(aes(x = n, y = size, colour = in4)) + 
+  geom_point()
 
 
 ```
@@ -242,145 +257,3 @@ All analyses in this comment can be reproduced with code archived at https://git
 
 
 # References {-}
-
-
-
-
-```{r ruggiero-act, eval = FALSE}
-ruggiero_a <- raw_data %>% 
-  group_by(mesocosm, activity_level) %>% 
-  mutate(activity_level2 = paste(activity_level, 1:n(), sep = "_")) %>% 
-  ungroup() %>% 
-  count(mesocosm, activity_level2) %>% 
-  sim(method = "ruggiero", listout = FALSE, listin = TRUE) 
-
- ruggiero2_a <- ruggiero_a %>% 
-    as.data.frame() %>% 
-    rownames_to_column(var = "xid") %>% 
-    pivot_longer(-xid, names_to = "yid", values_to = "rug") %>% 
-    filter(xid != yid) %>%  # remove diagonal
-    mutate(across(everything(), as.numeric))
- 
-random_ruggiero_a <- rerun(100, {
-  ruggiero <- raw_data %>% 
-    mutate(activity_level = sample(activity_level)) %>% #randomise
-    group_by(mesocosm, activity_level) %>% 
-    mutate(activity_level2 = paste(activity_level, 1:n(), sep = "_")) %>% 
-    ungroup() %>% 
-    count(mesocosm, activity_level2) %>% 
-    sim(method = "ruggiero", listout = FALSE, listin = TRUE) 
-
- ruggiero %>% 
-    as.data.frame() %>% 
-    rownames_to_column(var = "xid") %>% 
-    pivot_longer(-xid, names_to = "yid", values_to = "rug") %>% 
-    filter(xid != yid) %>%  # remove diagonal
-    mutate(across(everything(), as.numeric))
-})
-```
-
-
-
-
-```{r ruggiero-plots_a, eval = FALSE, fig.cap = "For the snail activity data, A) maximum Ruggiero similiarity between mesocosms for each of `r n_ruggiero_rep` permutations, B) distribution of Ruggiero similiarities between the mesocosms in the archived data, C) Ruggiero similiarities between pairs of mesocosms."}
-
-#raw data histogram
-rugg_size_hist_a <- ruggiero2_a %>% 
-  ggplot(aes(x = rug)) + 
-  geom_histogram(bins = 30) +
-  labs(x = "Ruggiero similarity")
- 
-#random max
-rugg_rand_hist_a <- random_ruggiero_a %>% 
-  set_names(1:length(.)) %>% 
-  bind_rows(.id = "n") %>% 
-  group_by(n) %>% 
-  summarise(mx = max(rug), .groups = "drop") %>% 
-  ggplot(aes(x = mx)) +
-  geom_histogram(bins = 20) +
-  labs(x = "Maximum Ruggiero similarity")
-
-rugg_raster_a <- ruggiero2_a %>% 
-    ggplot(aes(x = xid, y = yid, fill = rug)) + 
-    geom_raster() +
-    scale_fill_viridis_c()  +
-    scale_x_continuous(expand = c(0, 0), breaks = seq(2, 54, 2)) +
-    scale_y_continuous(expand = c(0, 0), breaks = seq(2, 54, 2)) +
-    labs(x = "Mesocosm 1", y = "Mesocosm 2", fill = "Ruggiero\nsimilarity") +
-  theme(panel.grid = element_blank())
-
-(rugg_rand_hist_a + rugg_size_hist_a) / rugg_raster_a +
-  patchwork::plot_annotation(tag_levels = "A") + plot_layout(heights = c(0.3, 0.7))
-```
-
-
-
-```{r ruggiero-p, eval = FALSE}
-ruggiero_p <- raw_data %>% 
-  group_by(mesocosm, activity_level) %>% 
-  mutate(activity_level2 = paste(activity_level, 1:n(), sep = "_")) %>% 
-  ungroup() %>% 
-  count(mesocosm, activity_level2) %>% 
-  sim(method = "ruggiero", listout = FALSE, listin = TRUE) 
-
- ruggiero2_p <- ruggiero_p %>% 
-    as.data.frame() %>% 
-    rownames_to_column(var = "xid") %>% 
-    pivot_longer(-xid, names_to = "yid", values_to = "rug") %>% 
-    filter(xid != yid) %>%  # remove diagonal
-    mutate(across(everything(), as.numeric))
- 
-random_ruggiero_p <- rerun(100, {
-  ruggiero <- raw_data %>% 
-    mutate(activity_level = sample(activity_level)) %>% #randomise
-    group_by(mesocosm, activity_level) %>% 
-    mutate(activity_level2 = paste(activity_level, 1:n(), sep = "_")) %>% 
-    ungroup() %>% 
-    count(mesocosm, activity_level2) %>% 
-    sim(method = "ruggiero", listout = FALSE, listin = TRUE) 
-
- ruggiero %>% 
-    as.data.frame() %>% 
-    rownames_to_column(var = "xid") %>% 
-    pivot_longer(-xid, names_to = "yid", values_to = "rug") %>% 
-    filter(xid != yid) %>%  # remove diagonal
-    mutate(across(everything(), as.numeric))
-})
-```
-
-
-
-
-```{r ruggiero-plots_p, eval = FALSE, fig.cap = "For the snail anti-predator response data, A) maximum Ruggiero similiarity between mesocosms for each of `r n_ruggiero_rep` permutations, B) distribution of Ruggiero similiarities between the mesocosms in the archived data, C) Ruggiero similiarities between pairs of mesocosms."}
-
-#raw data histogram
-rugg_size_hist_p <- ruggiero2_p %>% 
-  ggplot(aes(x = rug)) + 
-  geom_histogram(bins = 30) +
-  labs(x = "Ruggiero similarity")
- 
-#random max
-rugg_rand_hist_p <- random_ruggiero_p %>% 
-  set_names(1:length(.)) %>% 
-  bind_rows(.id = "n") %>% 
-  group_by(n) %>% 
-  summarise(mx = max(rug), .groups = "drop") %>% 
-  ggplot(aes(x = mx)) +
-  geom_histogram(bins = 20) +
-  labs(x = "Maximum Ruggiero similarity")
-
-rugg_raster_p <- ruggiero2_p %>% 
-    ggplot(aes(x = xid, y = yid, fill = rug)) + 
-    geom_raster() +
-    scale_fill_viridis_c()  +
-    scale_x_continuous(expand = c(0, 0), breaks = seq(2, 54, 2)) +
-    scale_y_continuous(expand = c(0, 0), breaks = seq(2, 54, 2)) +
-    labs(x = "Mesocosm 1", y = "Mesocosm 2", fill = "Ruggiero\nsimilarity") +
-  theme(panel.grid = element_blank())
-
-(rugg_rand_hist_p + rugg_size_hist_p) / rugg_raster_p +
-  patchwork::plot_annotation(tag_levels = "A") + plot_layout(heights = c(0.3, 0.7))
-```
-
-
-
