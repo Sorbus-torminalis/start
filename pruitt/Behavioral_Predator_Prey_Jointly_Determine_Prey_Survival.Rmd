@@ -5,6 +5,7 @@ date: "`r Sys.Date()`"
 output:
   bookdown::pdf_document2:
     keep_md: true
+    toc: false
 
 bibliography: bib/bib.bib
 csl: bib/the-american-naturalist.csl   
@@ -237,7 +238,7 @@ High similarities were not detected in either the activity or anti-predator resp
 
 # Reproducibility
 
-All analyses in this comment can be reproduced with code archived at https://github.com
+All analyses in this comment can be reproduced with code archived at https://github.com/Sorbus-torminalis/start/tree/main/pruitt
 
 
 # References {-}
