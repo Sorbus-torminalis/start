@@ -94,9 +94,9 @@ n_snails <- raw_data %>%
 Partial raw data for @Pruitt2012 are archived as an Excel file [@Pruitt2011_data].
 The sheet `raw data` includes data for activity, size (as `N Max`), anti-predator response, and survivorship for `r nrow(raw_data)` snails in `r max(raw_data$mesocosm)` mesocosms.
 Size and anti-predator response are presented as _z_-scores.
-Within each mesocosm, which have between `r n_snails$min` and `r n_snails$mx` snails, the data are sorted by survival and partially sorted by snail size (Fig. \@ref(fig:raw-data-plot)).
+Within each mesocosm, which have between `r n_snails$min` and `r n_snails$mx` snails, the data are sorted by survival and partially sorted by snail size (fig. \@ref(fig:raw-data-plot)).
 
-```{r raw-data-plot, fig.cap = "Raw data from mesocosm 35"}
+```{r raw-data-plot, fig.cap = "Raw data from mesocosm 35. Blue and yellow points indicate snails that were eaten or survived respectively."}
 #example of raw data
 raw_data %>% 
   select(mesocosm, survival_1_0, activity_level, size, n_anti_pred_response) %>% 
@@ -104,7 +104,7 @@ raw_data %>%
   filter(mesocosm == 35) %>% 
   pivot_longer(c(activity_level, size, n_anti_pred_response)) %>% 
   ggplot(aes(x = row, y = value, colour = factor(survival_1_0))) +
-  geom_point() +
+  geom_point(show.legend = FALSE) +
   scale_colour_viridis_d(option = "C", end = 0.8) +
   facet_wrap(~name, scales = "free_y", ncol = 1) +
   labs(x = "Row", y = "Value", colour = "Survival")
@@ -179,13 +179,24 @@ random_ruggiero <- rerun(n_ruggiero_rep, {
     filter(xid != yid) %>%  # remove diagonal
     mutate(across(everything(), as.numeric))
 })
+
+#find max of random trials
+rugg_rand_max <- random_ruggiero %>% 
+  set_names(1:length(.)) %>% 
+  bind_rows(.id = "n") %>% 
+  group_by(n) %>% 
+  summarise(mx = max(rug), .groups = "drop") 
+
 ```
 
 # Results
 
-Figure \@ref(fig:ruggiero-plots) shows that the Ruggiero similarities between some pairs of plots are much higher than expected from a random permutation of the data.
-For example, `r sum(ruggiero2$rug == 1)` pairs of mesocosms have a Ruggiero similarity of 1, that is the measurements in the smaller mesocosm are a subset of those in the larger mesocosm.
-A further `r sum(ruggiero2$rug > 0.8 & ruggiero2$rug < 1)` pairs of mesocosms have a Ruggiero similarity above 0.8.
+
+Figure \@ref(fig:ruggiero-plots) shows that the Ruggiero similarities between some pairs of mesocosms are much higher than expected from a random permutation of the data.
+For example, `r sum(ruggiero2$rug == 1)` pairs of mesocosms have a Ruggiero similarity of 1 (fig. \@ref(fig:ruggiero-plots)A), that is the measurements in the smaller mesocosm are a subset of those in the larger mesocosm (fig. \@ref(fig:paired-plots)).
+A further `r sum(ruggiero2$rug > 0.8 & ruggiero2$rug < 1)` pairs of mesocosms have a Ruggiero similarity above 0.8 (fig. \@ref(fig:ruggiero-plots)A).
+In contrast, the 99^th^ percentile of the maximum similarity found in `r n_ruggiero_rep` permutations is `r quantile(rugg_rand_max$mx, prob = 0.99) %>% round(3)` and the highest maximum observed was `r max(rugg_rand_max$mx) %>% round(3)` (fig. \@ref(fig:ruggiero-plots)B).
+Similarities above 0.8 are therefore expected to be very rare.
 
 ```{r ruggiero-plots, fig.cap = glue::glue("For the snail size data, A) maximum Ruggiero similiarity between mesocosms for each of {n_ruggiero_rep} permutations, B) distribution of Ruggiero similiarities between the mesocosms in the archived data, C) Ruggiero similiarities between pairs of mesocosms.")}
 
@@ -196,11 +207,7 @@ rugg_size_hist <- ruggiero2 %>%
   labs(x = "Ruggiero similarity")
  
 #random max similarity
-rugg_rand_hist <- random_ruggiero %>% 
-  set_names(1:length(.)) %>% 
-  bind_rows(.id = "n") %>% 
-  group_by(n) %>% 
-  summarise(mx = max(rug), .groups = "drop") %>% 
+rugg_rand_hist <- rugg_rand_max %>% 
   ggplot(aes(x = mx)) +
   geom_histogram(bins = 20) +
   labs(x = "Maximum Ruggiero similarity")
@@ -216,14 +223,15 @@ rugg_raster <- ruggiero2 %>%
   theme(panel.grid = element_blank())
 
 #compile plots with patchwork
-(rugg_rand_hist + rugg_size_hist) / rugg_raster +
+(rugg_size_hist + rugg_rand_hist) / rugg_raster +
   patchwork::plot_annotation(tag_levels = "A") + plot_layout(heights = c(0.3, 0.7))
 ```
 
-```{r, eval = FALSE}
+```{r paired-plots, fig.cap = "Size against row number for pairs of mesocosms which Ruggiero similarity of 1. Green points are in the paired mesocosm, blue points are not." }
 
-ruggiero2 %>% filter(rug  >0.9) %>% 
-  rename(`Mesococsm 1` = xid, `Mesococsm 2` = yid, "Ruggiero similarity" = rug)
+# ruggiero2 %>% 
+#   filter(rug  > 0.9) %>% 
+#   rename(`Mesococsm 1` = xid, `Mesococsm 2` = yid, "Ruggiero similarity" = rug)
 
 #look at pairs of mesocosms
 #in a table
@@ -234,22 +242,61 @@ a <- raw_data %>%
   mutate(n = row_number(),
          size = sort(size)) %>% 
   pivot_wider(names_from = mesocosm, values_from = size)
-a
+#a
 #graphically
-raw_data %>% 
-  mutate(n = 1:nrow(.)) %>% 
-  filter(mesocosm == 45) %>% 
-  mutate(in4 = size %in% (raw_data %>% filter(mesocosm == 29) %>% pull(size))) %>% 
-  ggplot(aes(x = n, y = size, colour = in4)) + 
-  geom_point()
+plot_2_mecososms <- function(data = raw_data, m1, m2){
+  mesos <- raw_data %>% 
+    select(mesocosm, size) %>% 
+    mutate(n = 1:nrow(.)) %>% 
+    filter(mesocosm %in% c(m1, m2)) %>% 
+    group_by(mesocosm, size) %>% 
+    mutate(
+      size2  = paste(size, 1:n(), sep = "_"), #make duplicates distinct
+      alt = if_else(mesocosm == m1, true = m2, false = m1)
+    )
+  
+  mesos %>% left_join(
+    mesos %>% ungroup() %>% select(-mesocosm, -size), 
+    by = c("mesocosm" = "alt", "size2" = "size2")) %>% 
+    select(-alt) %>%
+    mutate(mesocosm = factor(mesocosm, levels = c(m1, m2))) %>% 
+    ggplot(aes(x = n.x, y = size, colour = !is.na(n.y))) + 
+    geom_point(show.legend = FALSE) +
+    scale_colour_viridis_d(end = 0.8) +
+    facet_wrap(~mesocosm, scales = "free_x", ncol = 1)
+}
 
+meso_plots <- ruggiero2 %>% 
+  filter(rug == 1) %>% 
+  rowwise() %>% 
+  mutate(plots = map2(.x = xid, .y = yid, ~plot_2_mecososms(m1 = .x, m2 = .y)))
+
+wrap_plots(meso_plots$plots) + 
+  plot_layout(guides = "collect")  +
+  patchwork::plot_annotation(tag_levels = "A") & 
+  theme(axis.title.x = element_blank())
+
+# meso_plots <- ruggiero2 %>%
+# filter(rug < 1 & rug > 0.8) %>%
+# rowwise() %>%
+# mutate(plots = map2(.x = xid, .y = yid, ~plot_2_mecososms(m1 = .x, m2 = .y)))
+# wrap_plots(meso_plots$plots) +
+# plot_layout(guides = "collect") &
+# theme(axis.title.x = element_blank())
 
 ```
 
+High similarities were not detected in either the activity or anti-predator response data (results not shown).
+
+
 # Conclusions
 
-The presence of unexpectedly high similarities between size measurement in the different mesocosms may be indicative of data duplication.
-High similarities were not detected in either the activity or anti-predator response data (results not shown).
+The presence of unexpectedly high similarities between size measurements in the different mesocosms may be indicative of data duplication.
+Because the data were sorted, the mesocosms are a convenient sized chunk of data to test for duplication, but if give reduced similarities if the duplication was done on a different scale.
+Tests of duplication on the original unsorted data will be much more powerful.
+
+Snail size is an important variable in @Pruitt2012.
+If the size data cannot be relied upon, a large part of the results become questionable.
 
 # Reproducibility
 
