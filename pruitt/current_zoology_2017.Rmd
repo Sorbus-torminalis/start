@@ -15,6 +15,7 @@ library(tidyverse)
 library(janitor)
 library(lme4)
 library(car)
+library(assertr)
 theme_set(theme_bw())
 ```
 
@@ -42,11 +43,12 @@ snail_original <- bind_rows(
          seastar_ID = `Sea Star ID...3`, 
          snail_width_mm = `Snail Width (mm)...4`, 
          survived_01 = `Survived (1/0)...13`) %>% 
+  filter(!is.na(snail_ID)) %>% 
+  verify(survived_01 == `Survived (1/0)...25`) %>% #check duplicate columns identical
   select(-matches("\\.{3}")) %>% 
   clean_names() %>% 
   mutate(survived = if_else(survived_01 == 1, "Alive", "Dead"), 
-         survived = factor(survived)) %>% 
-  filter(!is.na(snail_id))
+         survived = factor(survived)) 
 
 # snails <- read_excel(here("data", "Foster.etal.CurrentZoo2017.xlsx"), sheet = "Survival Data") %>% 
 #   mutate( Survived = if_else(Survived_1.0 == 1, "Alive", "Dead"))
@@ -59,7 +61,7 @@ ggplot(snail_original, aes(x = trial_id, y = snail_width_mm, fill = trial_id) ) 
 lm(snail_width_mm ~ trial_id, data = snail_original) %>% 
   anova() # highly significant
 
-leveneTest(snail_width_mm ~ trial_id, data = snail_original) # not significant
+leveneTest(snail_width_mm ~ as.factor(trial_id), data = snail_original) # not significant
 ```
 
 ## Figure 1
