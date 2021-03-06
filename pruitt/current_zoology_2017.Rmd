@@ -1,0 +1,207 @@
+---
+title: "Post-publication review of 'Smaller and bolder prey snails have higher survival in staged encounters with the sea star _Pisaster giganteus_'"
+author: "Sorbus torminalis"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(here)
+library(readxl)
+library(tidyverse)
+library(janitor)
+library(lme4)
+library(car)
+theme_set(theme_bw())
+```
+
+```{r load-data, include = FALSE, echo = FALSE}
+f <- here("data", "Foster.etal.CurrentZoo2017_Original.xlsx")
+
+
+single <- read_excel(f, sheet = "Single Density Survival Data") %>% 
+  slice(-1) %>% 
+  mutate(`Survived (1/0)...13` = as.numeric(`Survived (1/0)...13`),
+         `Survived (1/0)...25` = as.numeric(`Survived (1/0)...25`)
+         )
+
+double <- read_excel(f, sheet = "Double Density Survival Data") %>% 
+  slice(-1) 
+         
+         
+snail_original <- bind_rows(
+  single = single, 
+  double = double, 
+  .id = "Density"
+) %>% 
+  rename(trial_ID = `Trial ID...1`,         
+         snail_ID = `Snail ID...2`,
+         seastar_ID = `Sea Star ID...3`, 
+         snail_width_mm = `Snail Width (mm)...4`, 
+         survived_01 = `Survived (1/0)...13`) %>% 
+  select(-matches("\\.{3}")) %>% 
+  clean_names() %>% 
+  mutate(survived = if_else(survived_01 == 1, "Alive", "Dead"), 
+         survived = factor(survived)) %>% 
+  filter(!is.na(snail_id))
+
+# snails <- read_excel(here("data", "Foster.etal.CurrentZoo2017.xlsx"), sheet = "Survival Data") %>% 
+#   mutate( Survived = if_else(Survived_1.0 == 1, "Alive", "Dead"))
+```
+
+```{r}
+ggplot(snail_original, aes(x = trial_id, y = snail_width_mm, fill = trial_id) ) + 
+  geom_violin(show.legend = FALSE) 
+
+lm(snail_width_mm ~ trial_id, data = snail_original) %>% 
+  anova() # highly significant
+
+leveneTest(snail_width_mm ~ trial_id, data = snail_original) # not significant
+```
+
+## Figure 1
+
+Figure 1 cannot be replicated - outliers have been removed. 
+Plotting without jitter misrepresents how many points are in the tails of the distribution.
+(Not sure boxplots will work well on integer data with low variance)
+
+```{r figure_1}
+ggplot(snail_original, aes(x = survived, y = snail_width_mm)) +
+  geom_boxplot(outlier.shape = NA, fill = "grey60") +
+  geom_jitter(height = 0.1, aes(colour = density)) +
+  coord_flip()
+
+ggplot(snail_original, aes(x = snail_width_mm, y = survived_01, colour = seastar_id)) +
+  geom_jitter(width = 0, height = 0.2) +
+  geom_smooth(method = "gam", formula = y ~ s(x, bs = "cs", k = 5), method.args = list(family = binomial)) +
+  facet_wrap(~ trial_id)
+
+```
+
+## Figure 2 
+
+Figure 2 cannot be replicated - outliers have been removed. 
+
+
+```{r average-height-out-water}
+ggplot(snail_original, aes(x = survived, y = average_height_cm)) +
+  geom_boxplot(outlier.shape = NA, fill = "grey60") +
+  geom_jitter(height = 0, aes(colour = density)) +
+  coord_flip() +
+  scale_x_discrete(limits = c("Dead", "Alive")) #to match inconsistency in published
+
+```
+
+```{r heights}
+# mean height - no formula in excel sheet
+snail_with_height <- snail_original %>% 
+    mutate(mean_max_height = rowMeans(select(., matches("trial_\\d_max_height")))) 
+
+snail_with_height %>% 
+  ggplot(aes(x = average_height_cm, mean_max_height)) + 
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, colour = "red")
+
+ggplot(snail_with_height, aes(x = survived, y = mean_max_height)) +
+  geom_boxplot(outlier.shape = NA, fill = "grey60") +
+  geom_jitter(height = 0, aes(colour = density)) +
+  coord_flip() +
+  scale_x_discrete(limits = c("Dead", "Alive")) #to match inconsistency in published
+
+```
+
+
+
+## Correlations
+ 
+Correlations can be reproduced.
+
+```{r correlations}
+#reproduces
+snail_original %>% 
+  select(snail_width_mm, peak_height_cm, average_height_cm, average_time_out) %>% 
+  cor() %>% 
+  round(4)
+
+
+```
+
+
+## GLMM model
+
+
+> We used a GLMM with a binomial error distribution and log–link function to evaluate selection on prey traits. 
+
+Binomial with log-link is possible but unusual and often fails to converge. 
+This model fails to converge for me with a log-link.
+This may simply be a typo.
+
+> We included the individuals’ average maximum height out of the water obtained across their 5 anti-predator assays (height above water), max shell diameter (shell diameter), and prey density treatment (density treatment: 25 or 50 snails) as predictor variables in our model. 
+
+Seems to use average height (mean of two minute measurements over five trials) rather than average maximum height. 
+
+> We used snail survival as our binary response variable and individual P. giganteus identity and replicate ID as random effects in our model. 
+
+Reasonable.
+
+```{r}
+model <- glmer(
+  survived ~ density + snail_width_mm + average_height_cm + (1|trial_id) + (1|seastar_id), 
+  family = binomial(link = "logit"), # log link fails 
+  data = snail_with_height)
+summary(model)
+
+model2 <- glmer(# with mean max height
+  survived ~ density + snail_width_mm + mean_max_height + (1|trial_id) + (1|seastar_id), 
+  family = binomial(link = "logit"),
+  data = snail_with_height)
+summary(model2)
+```
+
+```{r}
+drop1(model, test = "Chisq")
+
+
+
+```
+
+
+## Repeat measurements
+
+Repeat behaviour measures are interesting - correlation decays over time. 
+
+
+```{r}
+pca_height <- snail_original %>% select(matches("trial_\\d_max_height")) %>% 
+  prcomp(scale. = FALSE) 
+
+biplot(pca_height)
+screeplot(pca_height, bstick = TRUE)
+
+snail_original %>% select(matches("trial_\\d_max_height")) %>% cor()
+
+
+pca_time <- snail_original %>% select(matches("trial_\\d_time_out")) %>% 
+  prcomp(scale. = TRUE) 
+biplot(pca_time)
+screeplot(pca_time, bstick = TRUE)
+
+snail_original %>% select(matches("trial_\\d_time_out")) %>% cor()
+
+```
+
+## Behaviour metrics
+
+Good correlation between max height and time out of water.
+
+```{r}
+cor(snail_original$trial_1_max_height, snail_original$trial_1_time_out)
+cor(snail_original$trial_2_max_height, snail_original$trial_2_time_out)
+cor(snail_original$trial_3_max_height, snail_original$trial_3_time_out)
+cor(snail_original$trial_4_max_height, snail_original$trial_4_time_out)
+
+```
+
