@@ -48,7 +48,7 @@ snail_original <- bind_rows(
   select(-matches("\\.{3}")) %>% 
   clean_names() %>% 
   mutate(survived = if_else(survived_01 == 1, "Alive", "Dead"), 
-         survived = factor(survived)) 
+         survived = factor(survived, levels = c("Dead", "Alive"))) 
 
 # snails <- read_excel(here("data", "Foster.etal.CurrentZoo2017.xlsx"), sheet = "Survival Data") %>% 
 #   mutate( Survived = if_else(Survived_1.0 == 1, "Alive", "Dead"))
@@ -66,15 +66,14 @@ leveneTest(snail_width_mm ~ as.factor(trial_id), data = snail_original) # not si
 
 ## Figure 1
 
-Figure 1 cannot be replicated - outliers have been removed. 
-Plotting without jitter misrepresents how many points are in the tails of the distribution.
-(Not sure boxplots will work well on integer data with low variance)
+Figure 1 cannot be replicated - outliers have been removed. Plotting without jitter misrepresents how many points are in the tails of the distribution. (Not sure boxplots will work well on integer data with low variance)
 
 ```{r figure_1}
 ggplot(snail_original, aes(x = survived, y = snail_width_mm)) +
   geom_boxplot(outlier.shape = NA, fill = "grey60") +
   geom_jitter(height = 0.1, aes(colour = density)) +
-  coord_flip()
+  coord_flip() +
+  scale_x_discrete(limits = c("Alive", "Dead")) #to match inconsistency in published
 
 ggplot(snail_original, aes(x = snail_width_mm, y = survived_01, colour = seastar_id)) +
   geom_jitter(width = 0, height = 0.2) +
@@ -83,10 +82,9 @@ ggplot(snail_original, aes(x = snail_width_mm, y = survived_01, colour = seastar
 
 ```
 
-## Figure 2 
+## Figure 2
 
-Figure 2 cannot be replicated - outliers have been removed. 
-
+Figure 2 cannot be replicated - outliers have been removed.
 
 ```{r average-height-out-water}
 ggplot(snail_original, aes(x = survived, y = average_height_cm)) +
@@ -115,10 +113,16 @@ ggplot(snail_with_height, aes(x = survived, y = mean_max_height)) +
 
 ```
 
+# Density
+```{r}
+ggplot(snail_original, aes(x = density, fill = survived)) + 
+  geom_bar(position = "fill")
+```
+
 
 
 ## Correlations
- 
+
 Correlations can be reproduced.
 
 ```{r correlations}
@@ -131,21 +135,17 @@ snail_original %>%
 
 ```
 
-
 ## GLMM model
 
+> We used a GLMM with a binomial error distribution and log--link function to evaluate selection on prey traits.
 
-> We used a GLMM with a binomial error distribution and log–link function to evaluate selection on prey traits. 
+Binomial with log-link is possible but unusual and often fails to converge. This model fails to converge for me with a log-link. This may simply be a typo.
 
-Binomial with log-link is possible but unusual and often fails to converge. 
-This model fails to converge for me with a log-link.
-This may simply be a typo.
+> We included the individuals' average maximum height out of the water obtained across their 5 anti-predator assays (height above water), max shell diameter (shell diameter), and prey density treatment (density treatment: 25 or 50 snails) as predictor variables in our model.
 
-> We included the individuals’ average maximum height out of the water obtained across their 5 anti-predator assays (height above water), max shell diameter (shell diameter), and prey density treatment (density treatment: 25 or 50 snails) as predictor variables in our model. 
+Seems to use average height (mean of two minute measurements over five trials) rather than average maximum height.
 
-Seems to use average height (mean of two minute measurements over five trials) rather than average maximum height. 
-
-> We used snail survival as our binary response variable and individual P. giganteus identity and replicate ID as random effects in our model. 
+> We used snail survival as our binary response variable and individual P. giganteus identity and replicate ID as random effects in our model.
 
 Reasonable.
 
@@ -153,7 +153,7 @@ Reasonable.
 model <- glmer(
   survived ~ density + snail_width_mm + average_height_cm + (1|trial_id) + (1|seastar_id), 
   family = binomial(link = "logit"), # log link fails 
-  data = snail_with_height)
+  data = snail_original)
 summary(model)
 
 model2 <- glmer(# with mean max height
@@ -170,11 +170,9 @@ drop1(model, test = "Chisq")
 
 ```
 
-
 ## Repeat measurements
 
-Repeat behaviour measures are interesting - correlation decays over time. 
-
+Repeat behaviour measures are interesting - correlation decays over time.
 
 ```{r}
 pca_height <- snail_original %>% select(matches("trial_\\d_max_height")) %>% 
@@ -206,4 +204,3 @@ cor(snail_original$trial_3_max_height, snail_original$trial_3_time_out)
 cor(snail_original$trial_4_max_height, snail_original$trial_4_time_out)
 
 ```
-
