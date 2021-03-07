@@ -170,6 +170,41 @@ drop1(model, test = "Chisq")
 
 ```
 
+# Removing outliers
+
+Dropping points that that appear to have been removed as outliers from figures 1 and 2.
+
+```{r}
+snail_subset <- snail_original %>% 
+  filter(between(snail_width_mm, 16, 24), 
+         average_height_cm < 3)
+
+model_subset <- glmer(
+  survived ~ density + snail_width_mm + average_height_cm + (1|trial_id) + (1|seastar_id), 
+  family = binomial(link = "logit"), # log link fails 
+  data = snail_subset)
+summary(model_subset)
+```
+
+## Using a glm
+
+```{r}
+model_glm <- glm(
+  survived ~ density + snail_width_mm + average_height_cm, 
+  family = binomial(link = "logit"),
+  data = snail_original)
+summary(model_glm)
+
+# model_glm2 <- glm(
+#   survived ~ density + snail_width_mm + average_height_cm, 
+#   family = binomial(link = "logit"), # log link fails 
+#   data = snail_subset)
+# summary(model_glm2)
+
+
+```
+
+
 ## Repeat measurements
 
 Repeat behaviour measures are interesting - correlation decays over time.
