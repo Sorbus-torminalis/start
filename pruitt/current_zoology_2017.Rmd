@@ -195,6 +195,8 @@ model_glm <- glm(
   data = snail_original)
 summary(model_glm)
 
+drop1(model_glm, test = "Chisq")
+
 # model_glm2 <- glm(
 #   survived ~ density + snail_width_mm + average_height_cm, 
 #   family = binomial(link = "logit"), # log link fails 
