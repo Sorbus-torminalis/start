@@ -45,6 +45,7 @@ vignettes/*.pdf
 *.html
 *.md
 *.png
+!LICENSE.md
 
 #data
 data/*
